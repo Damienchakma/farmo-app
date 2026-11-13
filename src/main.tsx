@@ -1,10 +1,19 @@
+import '@fontsource-variable/fraunces'
+import '@fontsource-variable/inter-tight'
+import '@fontsource-variable/jetbrains-mono'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import { BrowserRouter } from 'react-router-dom'
+import { App } from './App'
+import './app.css'
 
-createRoot(document.getElementById('root')!).render(
+const container = document.getElementById('root')
+if (!container) throw new Error('Root container #root is missing from index.html')
+
+createRoot(container).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 )

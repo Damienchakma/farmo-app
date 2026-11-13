@@ -1,4 +1,4 @@
-import type { AreaUnit, ClimateZone, IrrigationType, LandType, SoilType } from '../types'
+﻿import type { AreaUnit, ClimateZone, IrrigationType, LandType, SoilType } from '../types'
 
 /* ------------------------------------------------------------------- zones */
 
@@ -16,51 +16,51 @@ export interface ClimateZoneInfo {
 export const CLIMATE_ZONES: Record<ClimateZone, ClimateZoneInfo> = {
   NW: {
     code: 'NW',
-    label: 'Northwest — Barind and drought-prone plain',
-    description: 'Low rainfall, deep water table, winter fog, late-monsoon dry spells.',
+    label: 'Northwest — dry upland',
+    description: 'Low rainfall, deep water table, late frosts, dry summers.',
     floodExposure: 'low',
     droughtExposure: 'high',
-    note: 'Barind high land needs irrigation through the rabi season and a drought escape plan for Aman.',
+    note: 'Upland blocks need irrigation through the summer and a drought plan for spring-sown crops.',
   },
   N: {
     code: 'N',
-    label: 'North-central — old Brahmaputra floodplain',
-    description: 'Reliable monsoon, medium-high land, cold January nights.',
+    label: 'North — cold inland plain',
+    description: 'Reliable rain, heavy soils, hard winter nights.',
     floodExposure: 'moderate',
     droughtExposure: 'low',
-    note: 'Long cold nights in December–January slow boro establishment and push flowering date.',
+    note: 'Long cold nights in December and January slow establishment and shift flowering dates.',
   },
   NE: {
     code: 'NE',
-    label: 'Northeast — haor and Surma basin',
-    description: 'Extremely heavy monsoon, deep flooding, flash-flood risk in April–May.',
+    label: 'Northeast — wet river basin',
+    description: 'Heavy rainfall, high water tables, spring flood risk.',
     floodExposure: 'severe',
     droughtExposure: 'low',
-    note: 'One crop, one window: the boro harvest must be off before the April flash flood.',
+    note: 'One narrow window for winter cereals: the ground is often too wet to work until October.',
   },
   SW: {
     code: 'SW',
-    label: 'Southwest — Ganges tidal floodplain',
-    description: 'Salinity intrusion, tidal canals, late-monsoon waterlogging.',
+    label: 'Southwest — tidal lowland',
+    description: 'Coastal salinity intrusion, tidal canals, late-summer waterlogging.',
     floodExposure: 'high',
     droughtExposure: 'moderate',
-    note: 'Dry-season salinity builds in canal water from February; irrigation timing matters more than volume.',
+    note: 'Dry-season salinity builds in canal water from mid-summer; irrigation timing matters more than volume.',
   },
   SC: {
     code: 'SC',
-    label: 'South-central — coastal and estuarine',
-    description: 'Cyclone exposure, saline groundwater, heavy monsoon rain.',
+    label: 'South-central — coastal plain',
+    description: 'Storm exposure, brackish groundwater in places, heavy summer rain.',
     floodExposure: 'high',
     droughtExposure: 'moderate',
-    note: 'Cyclone landfall season is April–May and October–November; keep harvest operations tight.',
+    note: 'Storm season runs late summer and autumn; keep harvest operations tight around it.',
   },
   SE: {
     code: 'SE',
-    label: 'Southeast — Chittagong coastal plain',
-    description: 'Very high rainfall, rolling terrain, flash-flood runoff from the hills.',
+    label: 'Southeast — humid hills',
+    description: 'Very high rainfall, sloping ground, fast runoff.',
     floodExposure: 'moderate',
     droughtExposure: 'low',
-    note: 'Slope and runoff drain nutrients fast; potassium and sulphur are usually the limiting nutrients.',
+    note: 'Slope and runoff leach nutrients quickly; potassium and sulphur are usually the limiting nutrients.',
   },
 }
 
@@ -69,157 +69,169 @@ export const CLIMATE_ZONES: Record<ClimateZone, ClimateZoneInfo> = {
 export interface District {
   id: string
   name: string
-  division: string
+  /** Administrative region the district sits in. */
+  region: string
   zone: ClimateZone
   /** Annual rainfall, mm. */
   rainfallMm: number
-  /** Monsoon (Jun–Sep) share, mm. */
-  monsoonRainfallMm: number
+  /** Share of annual rain falling in the wet season (0–1). */
+  wetSeasonShare: number
+  /** Months (1-12) that make up the wet season. */
+  wetMonths: number[]
   winterTempC: [number, number]
   summerTempC: [number, number]
   soilTypes: SoilType[]
   dominantLand: LandType
   /** 0–1 dry-season salinity severity. */
   salinitySeverity: number
-  upazilas: string[]
+  localities: string[]
   note: string
 }
 
 export const DISTRICTS: District[] = [
   {
-    id: 'bogura',
-    name: 'Bogura',
-    division: 'Rajshahi',
+    id: 'cedar-valley',
+    name: 'Cedar Valley',
+    region: 'North County',
     zone: 'NW',
-    rainfallMm: 1420,
-    monsoonRainfallMm: 1010,
-    winterTempC: [9, 26],
-    summerTempC: [24, 37],
-    soilTypes: ['silty-clay-loam', 'clay-loam'],
-    dominantLand: 'medium',
-    salinitySeverity: 0,
-    upazilas: ['Sherpur', 'Kahaloo', 'Shajahanpur', 'Shivaloy', 'Gabtali'],
-    note: 'Barind fringe: reliable groundwater but falling water table; late-monsoon dry spells cut Aman yields.',
-  },
-  {
-    id: 'rajshahi',
-    name: 'Rajshahi',
-    division: 'Rajshahi',
-    zone: 'NW',
-    rainfallMm: 1330,
-    monsoonRainfallMm: 950,
-    winterTempC: [8, 26],
-    summerTempC: [25, 39],
-    soilTypes: ['sandy-loam', 'calcareous', 'silty-clay-loam'],
+    rainfallMm: 520,
+    wetSeasonShare: 0.46,
+    wetMonths: [5, 6, 7, 8],
+    winterTempC: [-6, 6],
+    summerTempC: [12, 29],
+    soilTypes: ['sandy-loam', 'silt-loam'],
     dominantLand: 'high',
     salinitySeverity: 0,
-    upazilas: ['Tanore', 'Godagari', 'Paba', 'Puthia', 'Charghat'],
-    note: 'Barind high land with calcareous patches; the water table drops 3–4 m by March every year.',
+    localities: ['North Ridge', 'Cedar Falls', 'Pine Hollow', 'Stone Creek', 'Mill Road'],
+    note: 'Upland district with a falling water table; summer dry spells cut spring-sown yields.',
   },
   {
-    id: 'mymensingh',
-    name: 'Mymensingh',
-    division: 'Mymensingh',
+    id: 'stonebridge',
+    name: 'Stonebridge',
+    region: 'North County',
+    zone: 'NW',
+    rainfallMm: 610,
+    wetSeasonShare: 0.5,
+    wetMonths: [5, 6, 7, 8],
+    winterTempC: [-5, 7],
+    summerTempC: [13, 30],
+    soilTypes: ['calcareous', 'sandy-loam', 'silt-loam'],
+    dominantLand: 'high',
+    salinitySeverity: 0,
+    localities: ['Westbridge', 'Old Quarry', 'Harlow', 'Ashton', 'Bramble Hill'],
+    note: 'Calcareous patches keep pH high: zinc and boron are the usual hidden deficiencies here.',
+  },
+  {
+    id: 'millbrook',
+    name: 'Millbrook',
+    region: 'North County',
     zone: 'N',
-    rainfallMm: 2240,
-    monsoonRainfallMm: 1560,
-    winterTempC: [8, 25],
-    summerTempC: [23, 35],
-    soilTypes: ['silty-clay-loam', 'clay-loam', 'silt-loam'],
+    rainfallMm: 820,
+    wetSeasonShare: 0.52,
+    wetMonths: [5, 6, 7, 8],
+    winterTempC: [-8, 5],
+    summerTempC: [12, 28],
+    soilTypes: ['clay-loam', 'silty-clay-loam'],
     dominantLand: 'medium',
     salinitySeverity: 0,
-    upazilas: ['Muktagachha', 'Bhaluka', 'Trishal', 'Phulpur', 'Gaffargaon'],
-    note: 'Old Brahmaputra floodplain — heavy monsoon, but a real dry window from November to March.',
+    localities: ['Millbrook', 'Fairhaven', 'Long Meadow', 'Ashford', 'Barrow'],
+    note: 'River valley with heavy soils and the coldest winter nights in the county.',
   },
   {
-    id: 'jashore',
-    name: 'Jashore',
-    division: 'Khulna',
-    zone: 'SW',
-    rainfallMm: 1680,
-    monsoonRainfallMm: 1180,
-    winterTempC: [10, 27],
-    summerTempC: [24, 38],
-    soilTypes: ['silt-loam', 'silty-clay-loam', 'saline-clay'],
-    dominantLand: 'high',
-    salinitySeverity: 0.35,
-    upazilas: ['Jhikargachha', 'Dupuria', 'Keshabpur', 'Monirumpur', 'Abhaynagar'],
-    note: 'The vegetable belt of the southwest: high land, shallow tubewells, and strong off-season market links.',
-  },
-  {
-    id: 'khulna',
-    name: 'Khulna',
-    division: 'Khulna',
-    zone: 'SW',
-    rainfallMm: 1720,
-    monsoonRainfallMm: 1200,
-    winterTempC: [11, 28],
-    summerTempC: [24, 37],
-    soilTypes: ['saline-clay', 'silt-loam'],
-    dominantLand: 'low',
-    salinitySeverity: 0.68,
-    upazilas: ['Dumuria', 'Batiaghata', 'Rupsa', 'Phultala', 'Dighalia'],
-    note: 'Tidal land: canal water turns saline after February, and drainage in August is the main constraint.',
-  },
-  {
-    id: 'dinajpur',
-    name: 'Dinajpur',
-    division: 'Rangpur',
-    zone: 'NW',
-    rainfallMm: 1980,
-    monsoonRainfallMm: 1420,
-    winterTempC: [7, 25],
-    summerTempC: [22, 36],
-    soilTypes: ['silty-clay-loam', 'clay-loam'],
-    dominantLand: 'medium',
-    salinitySeverity: 0,
-    upazilas: ['Birganj', 'Chirirbandar', 'Parbatipur', 'Birol', 'Kaharole'],
-    note: 'Coldest winter nights in the country: boro flowering dates must clear the January–February cold slot.',
-  },
-  {
-    id: 'barishal',
-    name: 'Barishal',
-    division: 'Barishal',
-    zone: 'SC',
-    rainfallMm: 2180,
-    monsoonRainfallMm: 1500,
-    winterTempC: [11, 28],
-    summerTempC: [24, 36],
-    soilTypes: ['silt-loam', 'saline-clay'],
-    dominantLand: 'low',
-    salinitySeverity: 0.45,
-    upazilas: ['Bakerganj', 'Banaripara', 'Gaurnadi', 'Wazirpur', 'Babuganj'],
-    note: 'Rivers surround it; late-monsoon waterlogging and seasonal salinity both shape the cropping calendar.',
-  },
-  {
-    id: 'rangpur',
-    name: 'Rangpur',
-    division: 'Rangpur',
-    zone: 'NW',
-    rainfallMm: 2090,
-    monsoonRainfallMm: 1500,
-    winterTempC: [7, 25],
-    summerTempC: [22, 36],
+    id: 'northfield',
+    name: 'Northfield',
+    region: 'Central County',
+    zone: 'N',
+    rainfallMm: 780,
+    wetSeasonShare: 0.5,
+    wetMonths: [5, 6, 7, 8],
+    winterTempC: [-6, 6],
+    summerTempC: [13, 29],
     soilTypes: ['silty-clay-loam', 'silt-loam'],
     dominantLand: 'medium',
     salinitySeverity: 0,
-    upazilas: ['Badarganj', 'Gangachara', 'Pirgachha', 'Mithapukur', 'Taraganj'],
-    note: 'Tista floodplain: good water availability, but potato blight pressure is high in foggy January.',
+    localities: ['Northfield', 'Grange', 'Elmstead', 'Kingsbury', 'Wexley'],
+    note: 'Reliable rainfall and even soils; the workhorse district for winter cereals.',
   },
   {
-    id: 'pabna',
-    name: 'Pabna',
-    division: 'Rajshahi',
-    zone: 'NW',
-    rainfallMm: 1560,
-    monsoonRainfallMm: 1120,
-    winterTempC: [9, 26],
-    summerTempC: [24, 37],
+    id: 'fairview',
+    name: 'Fairview',
+    region: 'East County',
+    zone: 'NE',
+    rainfallMm: 1180,
+    wetSeasonShare: 0.58,
+    wetMonths: [5, 6, 7, 8, 9],
+    winterTempC: [-4, 7],
+    summerTempC: [14, 28],
+    soilTypes: ['silt-loam', 'silty-clay-loam'],
+    dominantLand: 'medium',
+    salinitySeverity: 0,
+    localities: ['Fairview', 'Rushford', 'Bellwater', 'Copse End', 'Marlow'],
+    note: 'Wettest district in the demo: drainage, not irrigation, is the limiting factor.',
+  },
+  {
+    id: 'oakridge',
+    name: 'Oakridge',
+    region: 'East County',
+    zone: 'SE',
+    rainfallMm: 1020,
+    wetSeasonShare: 0.55,
+    wetMonths: [5, 6, 7, 8],
+    winterTempC: [-3, 8],
+    summerTempC: [15, 30],
+    soilTypes: ['silt-loam', 'sandy-loam'],
+    dominantLand: 'high',
+    salinitySeverity: 0,
+    localities: ['Oakridge', 'High Fell', 'Dunmore', 'Coldharbour', 'Ridgeway'],
+    note: 'Sloping ground on the eastern ridge; runoff carries nitrogen away quickly.',
+  },
+  {
+    id: 'greenfield',
+    name: 'Greenfield',
+    region: 'South County',
+    zone: 'SW',
+    rainfallMm: 700,
+    wetSeasonShare: 0.45,
+    wetMonths: [6, 7, 8],
+    winterTempC: [-2, 9],
+    summerTempC: [14, 30],
+    soilTypes: ['silt-loam', 'sandy-loam'],
+    dominantLand: 'high',
+    salinitySeverity: 0.15,
+    localities: ['Greenfield', 'Southgate', 'Hayward', 'Cobble End', 'Wrenbury'],
+    note: 'Light, workable soils built for field vegetables and early potatoes.',
+  },
+  {
+    id: 'riverside',
+    name: 'Riverside',
+    region: 'South County',
+    zone: 'SW',
+    rainfallMm: 760,
+    wetSeasonShare: 0.48,
+    wetMonths: [6, 7, 8],
+    winterTempC: [0, 10],
+    summerTempC: [15, 30],
+    soilTypes: ['saline-clay', 'silt-loam'],
+    dominantLand: 'low',
+    salinitySeverity: 0.62,
+    localities: ['Riverside', 'Tide Mill', 'Saltmarsh', 'Penny Bridge', 'Weir End'],
+    note: 'Tidal land: canal water turns brackish after midsummer, and drainage is the main constraint.',
+  },
+  {
+    id: 'westbrook',
+    name: 'Westbrook',
+    region: 'South County',
+    zone: 'SC',
+    rainfallMm: 840,
+    wetSeasonShare: 0.5,
+    wetMonths: [6, 7, 8],
+    winterTempC: [-1, 9],
+    summerTempC: [15, 31],
     soilTypes: ['silty-clay-loam', 'clay-loam'],
     dominantLand: 'medium',
-    salinitySeverity: 0.05,
-    upazilas: ['Ishwardi', 'Bera', 'Sujanagar', 'Bhangura', 'Chatmohar'],
-    note: 'Chalan Beel edge — early monsoon flooding is common; choose varieties that can take a 5-day submergence.',
+    salinitySeverity: 0.35,
+    localities: ['Westbrook', 'Merrow', 'Stanwell', 'Lower Marsh', 'Kettleby'],
+    note: 'Coastal plain with a brackish aquifer; storm season shapes the autumn calendar.',
   },
 ]
 
@@ -247,7 +259,7 @@ export const SOIL_TYPES: SoilTypeInfo[] = [
     typicalPh: [6.0, 6.8],
     drainage: 'moderate',
     organicMatterPct: 1.6,
-    note: 'The workhorse soil of the northern floodplains; holds moisture well and responds to organic matter.',
+    note: 'Holds moisture well and responds to organic matter; the commonest arable soil in the demo.',
   },
   {
     id: 'clay-loam',
@@ -255,7 +267,7 @@ export const SOIL_TYPES: SoilTypeInfo[] = [
     typicalPh: [5.8, 6.8],
     drainage: 'poor',
     organicMatterPct: 1.8,
-    note: 'Heavy, slow-draining: excellent for paddy, troublesome for potato and vegetables in the monsoon.',
+    note: 'Heavy and slow-draining: excellent for paddy, troublesome for potatoes in a wet spring.',
   },
   {
     id: 'sandy-loam',
@@ -275,11 +287,11 @@ export const SOIL_TYPES: SoilTypeInfo[] = [
   },
   {
     id: 'calcareous',
-    label: 'Calcareous (Barind)',
+    label: 'Calcareous',
     typicalPh: [7.2, 8.0],
     drainage: 'good',
     organicMatterPct: 0.6,
-    note: 'Free lime keeps pH high: zinc and boron are the usual hidden deficiencies here.',
+    note: 'Free lime keeps pH high: zinc and boron are the usual hidden deficiencies.',
   },
   {
     id: 'saline-clay',
@@ -287,7 +299,7 @@ export const SOIL_TYPES: SoilTypeInfo[] = [
     typicalPh: [6.6, 7.8],
     drainage: 'poor',
     organicMatterPct: 1.0,
-    note: 'Salinity rises through the dry season. Salt-tolerant varieties and gypsum plus leaching are the levers.',
+    note: 'Salinity rises through the dry season. Salt-tolerant varieties plus gypsum and leaching are the levers.',
   },
 ]
 
@@ -300,18 +312,18 @@ export interface IrrigationInfo {
   label: string
   /** Rough application efficiency, 0–1. */
   efficiency: number
-  costPerMmPerAcreBdt: number
+  costPerMmPerAcreUsd: number
   note: string
 }
 
 export const IRRIGATION_TYPES: IrrigationInfo[] = [
-  { id: 'rainfed', label: 'Rainfed', efficiency: 0.7, costPerMmPerAcreBdt: 0, note: 'No pumping cost, no control — plan around the monsoon break.' },
-  { id: 'canal', label: 'Canal / khal', efficiency: 0.55, costPerMmPerAcreBdt: 9, note: 'Low cost per mm but supply is a schedule, not a tap; salinity rises late in the dry season.' },
-  { id: 'shallow-tubewell', label: 'Shallow tubewell (STW)', efficiency: 0.65, costPerMmPerAcreBdt: 22, note: 'Fastest to arrange; output drops as the water table falls in March.' },
-  { id: 'deep-tubewell', label: 'Deep tubewell (DTW)', efficiency: 0.7, costPerMmPerAcreBdt: 16, note: 'Steady supply across the dry season, but needs shared scheduling with neighbours.' },
-  { id: 'tidal', label: 'Tidal canal (gher)', efficiency: 0.5, costPerMmPerAcreBdt: 4, note: 'Free water on the tide, but salinity and timing follow the moon, not the crop.' },
-  { id: 'pond', label: 'Pond / beel lift', efficiency: 0.6, costPerMmPerAcreBdt: 14, note: 'Good for vegetables and seedbeds; usually exhausted by March.' },
-  { id: 'drip', label: 'Drip', efficiency: 0.9, costPerMmPerAcreBdt: 38, note: 'Highest efficiency and most reliable for row crops; needs clean water and filtration.' },
+  { id: 'rainfed', label: 'Rainfed', efficiency: 0.7, costPerMmPerAcreUsd: 0, note: 'No pumping cost and no control — plan around the dry spell.' },
+  { id: 'canal', label: 'Canal / ditch', efficiency: 0.55, costPerMmPerAcreUsd: 0.5, note: 'Low cost per mm but supply is a schedule, not a tap.' },
+  { id: 'shallow-tubewell', label: 'Shallow well', efficiency: 0.65, costPerMmPerAcreUsd: 1.2, note: 'Fastest to arrange; output drops as the water table falls in late summer.' },
+  { id: 'deep-tubewell', label: 'Deep well', efficiency: 0.7, costPerMmPerAcreUsd: 0.9, note: 'Steady supply across the dry season, but needs shared scheduling with neighbours.' },
+  { id: 'tidal', label: 'Tidal canal', efficiency: 0.5, costPerMmPerAcreUsd: 0.2, note: 'Free water on the tide, but salinity and timing follow the moon, not the crop.' },
+  { id: 'pond', label: 'Pond / reservoir lift', efficiency: 0.6, costPerMmPerAcreUsd: 0.8, note: 'Good for vegetables and seedbeds; usually exhausted by midsummer.' },
+  { id: 'drip', label: 'Drip', efficiency: 0.9, costPerMmPerAcreUsd: 2.1, note: 'Highest efficiency and most reliable for row crops; needs clean water and filtration.' },
 ]
 
 export const IRRIGATION_BY_ID = new Map(IRRIGATION_TYPES.map((i) => [i.id, i]))
@@ -328,10 +340,9 @@ export interface AreaUnitInfo {
 }
 
 export const AREA_UNITS: AreaUnitInfo[] = [
-  { id: 'decimal', label: 'decimal', plural: 'decimals', toAcre: 0.01, toHectare: 0.0040468, note: '1 acre = 100 decimals' },
-  { id: 'bigha', label: 'bigha', plural: 'bigha', toAcre: 0.330579, toHectare: 0.133781, note: '1 bigha = 33 decimals = 20 katha' },
-  { id: 'acre', label: 'acre', plural: 'acres', toAcre: 1, toHectare: 0.404686, note: '1 acre = 3.03 bigha' },
-  { id: 'hectare', label: 'hectare', plural: 'hectares', toAcre: 2.47105, toHectare: 1, note: 'Corrected acres: 1 ha = 2.47 acres' },
+  { id: 'acre', label: 'acre', plural: 'acres', toAcre: 1, toHectare: 0.404686, note: '1 acre = 0.40 hectares' },
+  { id: 'hectare', label: 'hectare', plural: 'hectares', toAcre: 2.47105, toHectare: 1, note: '1 hectare = 2.47 acres' },
+  { id: 'sqm', label: 'square metre', plural: 'square metres', toAcre: 0.000247105, toHectare: 0.0001, note: 'For tunnels, beds and small plots' },
 ]
 
 export const AREA_UNIT_BY_ID = new Map(AREA_UNITS.map((u) => [u.id, u]))
@@ -344,11 +355,11 @@ export function toHectare(value: number, unit: AreaUnit): number {
   return value * (AREA_UNIT_BY_ID.get(unit)?.toHectare ?? 0.404686)
 }
 
-/** A maund is 37.3242 kg — the unit every farm-gate price in the country is quoted in. */
-export const KG_PER_MAUND = 37.3242
+/** Grain and oilseed prices are quoted per tonne. */
+export const KG_PER_TONNE = 1000
 
 export function formatArea(value: number, unit: AreaUnit): string {
   const info = AREA_UNIT_BY_ID.get(unit)
   const n = value % 1 === 0 ? value.toString() : value.toFixed(2).replace(/\.?0+$/, '')
-  return `${n} ${info?.plural ?? unit}`
+  return `${n} ${Number(value) === 1 ? (info?.label ?? unit) : (info?.plural ?? unit)}`
 }

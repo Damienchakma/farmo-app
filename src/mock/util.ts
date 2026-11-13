@@ -29,7 +29,7 @@ export function rngFor(...parts: Array<string | number>): () => number {
   return mulberry32(hashString(parts.join('|')))
 }
 
-/** Stable value in [min,max] with 2-decimal resolution. */
+/** Stable value in [min,max] with fixed decimal resolution. */
 export function stableBetween(parts: Array<string | number>, min: number, max: number, decimals = 2): number {
   const r = rngFor(...parts)()
   const v = min + r * (max - min)
@@ -78,7 +78,6 @@ export function dayOfYear(d: Date): number {
   return Math.floor((d.getTime() - start.getTime()) / 86400000)
 }
 
-/** Start of the current week (Monday). */
 export function startOfWeek(d: Date): Date {
   const copy = new Date(d)
   const day = (copy.getDay() + 6) % 7
@@ -89,14 +88,25 @@ export function startOfWeek(d: Date): Date {
 
 /* ---------------------------------------------------------------- weather */
 
-const MONTH_RAIN_SHARE = [
-  0.005, 0.02, 0.04, 0.12, 0.16, 0.19, 0.21, 0.16, 0.07, 0.05, 0.01, 0.005,
-]
+/** Share of the annual rainfall that lands in the four wettest months. */
+export function monthlyRainShares(district: District): number[] {
+  const shares = Array.from({ length: 12 }, () => 0.012)
+  const wet = district.wetMonths.filter((m) => m >= 1 && m <= 12)
+  const wetWeight = district.wetSeasonShare
+  const dryWeight = 1 - wetWeight
+  const dryMonths = 12 - wet.length
+  for (let i = 0; i < 12; i += 1) {
+    const month = i + 1
+    shares[i] = wet.includes(month) ? wetWeight / Math.max(1, wet.length) : dryWeight / Math.max(1, dryMonths)
+  }
+  return shares
+}
 
 /**
- * Pseudo-weather: a smooth seasonal temperature curve plus clustered monsoon
- * rainfall, seeded by (district, seedKey, date) so a farm's history and
- * forecast are stable across reloads and identical for every viewer.
+ * Pseudo-weather for a district: a smooth seasonal temperature curve with
+ * frost snap and a rainfall pattern built from the district's wet season,
+ * seeded by (district, seedKey, date) so a farm's history and forecast are
+ * stable across reloads and identical for every viewer.
  */
 export function generateWeather(
   district: District,
@@ -112,6 +122,7 @@ export function generateWeather(
   const summerMid = (summerLo + summerHi) / 2
   const amp = (summerMid - winterMid) / 2
   const base = (summerMid + winterMid) / 2
+  const rainShares = monthlyRainShares(district)
 
   const dayCount = daysBack + daysForward + 1
   const start = addDays(reference, -daysBack)
@@ -123,43 +134,41 @@ export function generateWeather(
     const r2 = rngFor(`${key}|b`)
     const r3 = rngFor(`${key}|c`)
     const doy = dayOfYear(date)
+    const month = date.getMonth()
 
-    // Temperature: peak around 15 May (doy 135), trough around 12 January (doy 12).
-    const seasonal = Math.cos(((doy - 135) / 365) * Math.PI * 2)
-    const tMean = base + amp * seasonal + (r() - 0.5) * 2.4
-    const spread = 7 + (r2() - 0.5) * 2.5
+    // Temperature peaks around 18 July (doy 199), bottoms around 15 January.
+    const seasonal = Math.cos(((doy - 199) / 365) * Math.PI * 2)
+    const tMean = base + amp * seasonal + (r() - 0.5) * 2.6
+    const spread = 6.5 + (r2() - 0.5) * 2.4
     let tMin = tMean - spread / 2
     const tMax = tMean + spread / 2
 
-    const month = date.getMonth()
-    const share = MONTH_RAIN_SHARE[month]
-    const monsoon = clamp((share - 0.05) / 0.16, 0, 1)
-    const dailyTarget = district.rainfallMm * share / 30
+    const share = rainShares[month]
+    const wettest = Math.max(...rainShares)
+    const wetness = clamp(share / (wettest || 1), 0, 1)
+    const dailyTarget = (district.rainfallMm * share) / 30
 
-    // Cluster rain: a wet day is more likely if the previous day was wet.
+    // Rain clusters: a wet day makes the next one likelier, as real fronts do.
     const prevKey = `${district.id}|${seedKey}|${isoDate(addDays(date, -1))}`
-    const prevWet = rngFor(`${prevKey}|w`)() < 0.28 + monsoon * 0.35 ? 1 : 0
-    const wetChance = clamp(0.04 + monsoon * 0.5 + prevWet * 0.22, 0, 0.9)
+    const prevWet = rngFor(`${prevKey}|w`)() < 0.16 + wetness * 0.4 ? 1 : 0
+    const wetChance = clamp(0.06 + wetness * 0.44 + prevWet * 0.24, 0, 0.9)
     let rainfall = 0
     if (r2() < wetChance) {
-      const intensity = 0.35 + r3() * 2.4 + prevWet * 0.5
+      const intensity = 0.4 + r3() * 2.2 + prevWet * 0.4
       rainfall = round(dailyTarget * intensity, 1)
-      if (monsoon > 0.7 && r3() > 0.93) rainfall = round(rainfall * 2.1, 1) // cloudburst
+      if (wetness > 0.6 && r3() > 0.94) rainfall = round(rainfall * 1.9, 1) // cloudburst
     }
-    // Winter fog drizzle in the north.
-    if (month === 11 || month === 0) {
-      const fogRoll = rngFor(`${key}|fog`)()
-      if (fogRoll > 0.86) rainfall = Math.max(rainfall, round(0.4 + fogRoll * 1.6, 1))
-      if (fogRoll > 0.7) tMin = tMin + 0.6
+    // Hard frost in the coldest districts.
+    const frostChance = district.zone === 'N' || district.zone === 'NW' ? 0.24 : 0.12
+    if ((month <= 1 || month === 11) && r3() > 1 - frostChance) {
+      tMin = round(tMin - 3.4, 1)
     }
-    // Cold snap in the north-west.
-    if (district.zone === 'NW' && (month === 0 || month === 11) && r3() > 0.88) {
-      tMin = round(tMin - 3.2, 1)
-    }
+    // Muggy, low-cloud days trim the temperature range in the wet season.
+    if (rainfall > 3) tMin += 0.4
 
     const humidity = clamp(
-      62 + monsoon * 26 - (tMax - tMin) * 1.1 + (rainfall > 0 ? 12 : 0) + (r3() - 0.5) * 8,
-      32,
+      60 + wetness * 22 - (tMax - tMin) * 1.2 + (rainfall > 0 ? 12 : 0) + (r3() - 0.5) * 8 - Math.max(0, tMin) * 0.2,
+      30,
       98,
     )
 
@@ -185,16 +194,16 @@ export function rainfallSum(days: WeatherDay[]): number {
 
 /**
  * Reference evapotranspiration (Hargreaves–Samani), mm/day.
- * Ra is scaled for 23.8°N: about 24 MJ/m² in December, 40 MJ/m² in June.
+ * Ra is scaled for a ~50°N temperate latitude: about 8 MJ/m² in December and
+ * 42 MJ/m² in June.
  */
 export function referenceEt0(day: WeatherDay): number {
   const tMean = (day.tMax + day.tMin) / 2
   const range = Math.max(day.tMax - day.tMin, 2)
   const doy = dayOfYear(parseISO(day.date))
-  const raMJ = 32 + 8 * Math.cos(((doy - 172) / 365) * Math.PI * 2)
+  const raMJ = 25 + 17 * Math.cos(((doy - 172) / 365) * Math.PI * 2)
   const raMm = raMJ * 0.408
-  const et0 = 0.0023 * (tMean + 17.8) * Math.sqrt(range) * raMm
-  // Humidity and cloud cover trim demand on damp days.
+  const et0 = 0.0023 * Math.max(tMean + 17.8, 2) * Math.sqrt(range) * raMm
   const dampTrim = day.rainfallMm > 1 ? 0.85 : day.humidity > 78 ? 0.92 : 1
-  return round(clamp(et0 * dampTrim, 0.5, 9.5), 2)
+  return round(clamp(et0 * dampTrim, 0.2, 9.5), 2)
 }

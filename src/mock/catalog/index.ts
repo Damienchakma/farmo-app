@@ -14,17 +14,17 @@ export interface EquipmentInfo {
 }
 
 export const EQUIPMENT: EquipmentInfo[] = [
-  { id: 'tractor', label: 'Tractor with rotavator', note: '4-wheel, 45 hp class', enables: 'Land preparation in 1–2 days per bigha' },
-  { id: 'power-tiller', label: 'Power tiller', note: 'Two-wheel, 12 hp', enables: 'Puddling and shallow tillage' },
-  { id: 'two-wheel-tractor', label: 'Two-wheel tractor with implements', note: 'Plough, ladder, pump set', enables: 'Timely tillage in small plots' },
-  { id: 'shallow-tubewell', label: 'Shallow tubewell (STW)', note: '2 cusec, diesel or electric', enables: 'Dry-season irrigation to 10–20 bigha' },
-  { id: 'deep-tubewell', label: 'Deep tubewell (DTW)', note: 'Shared community well', enables: 'Reliable dry-season supply' },
-  { id: 'water-pump', label: 'Low-lift pump', note: 'For canal or pond lifting', enables: 'Supplementary irrigation from surface water' },
-  { id: 'knapsack-sprayer', label: 'Knapsack sprayer', note: '16 L, 2 units', enables: 'Timely plant protection at threshold' },
-  { id: 'seed-drill', label: 'Seed drill / bed planter', note: 'Rabi row crops', enables: 'Even stand and lower seed rate' },
-  { id: 'reaper', label: 'Reaper', note: 'Rice and wheat harvest', enables: 'Harvest 1 bigha in 2 hours' },
-  { id: 'pedal-thresher', label: 'Pedal thresher', note: 'Family-scale', enables: 'Threshing within a day of cutting' },
-  { id: 'thresher', label: 'Power thresher', note: 'Contract available', enables: 'Same-day threshing of paddy and maize' },
+  { id: 'tractor', label: 'Tractor with plough and power harrow', note: '4-wheel, 110 hp class', enables: 'Primary cultivation in 1–2 days per 10 acres' },
+  { id: 'power-tiller', label: 'Two-wheel tractor', note: '12 hp, walk-behind', enables: 'Bed forming and shallow tillage in small plots' },
+  { id: 'two-wheel-tractor', label: 'Compact utility tractor', note: '45 hp with loader', enables: 'Timely tillage and muck handling' },
+  { id: 'shallow-tubewell', label: 'Shallow well and pump set', note: 'Borehole to 15 m, 2 cusec', enables: 'Dry-season irrigation to 20–30 acres' },
+  { id: 'deep-tubewell', label: 'Deep well (shared)', note: 'Community well, scheduled supply', enables: 'Reliable dry-season supply' },
+  { id: 'water-pump', label: 'Low-lift pump', note: 'For canal or reservoir lifting', enables: 'Supplementary irrigation from surface water' },
+  { id: 'knapsack-sprayer', label: 'Knapsack sprayer', note: '16 L, two units', enables: 'Timely plant protection at threshold' },
+  { id: 'seed-drill', label: 'Seed drill / row planter', note: 'Conventional or minimum tillage', enables: 'Even stand and lower seed rate' },
+  { id: 'reaper', label: 'Combine header / reaper', note: 'Contracted harvest', enables: 'Harvest 10 acres in a day' },
+  { id: 'pedal-thresher', label: 'Small thresher', note: 'Farm-scale', enables: 'Threshing within a day of cutting' },
+  { id: 'thresher', label: 'Mobile thresher', note: 'Contract available', enables: 'Same-day threshing of grain crops' },
 ]
 
 export const EQUIPMENT_BY_ID = new Map(EQUIPMENT.map((e) => [e.id, e]))
@@ -42,37 +42,37 @@ export const ACCOMMODATION_KINDS: AccommodationKindInfo[] = [
   {
     id: 'irrigation',
     label: 'Irrigation access',
-    placeholder: 'Canal water available on rotation',
+    placeholder: 'Canal water on a rotation',
     detailHint: 'Capacity, schedule, and cost per hour',
   },
   {
     id: 'storage',
     label: 'Storage',
-    placeholder: 'Home godown, 40 maund',
+    placeholder: 'Grain store, 40 tonnes',
     detailHint: 'Capacity and protection from damp',
   },
   {
     id: 'labor',
     label: 'Labour',
-    placeholder: '4 permanent hands plus harvest crew',
-    detailHint: 'Permanent versus seasonal, and daily wage',
+    placeholder: 'Two permanent hands plus a harvest crew',
+    detailHint: 'Permanent versus seasonal, and the daily rate',
   },
   {
     id: 'machinery',
     label: 'Machinery',
-    placeholder: 'Power tiller shared with two neighbours',
+    placeholder: 'Compact tractor shared with two neighbours',
     detailHint: 'Owned or contract, and the sharing arrangement',
   },
   {
     id: 'transport',
     label: 'Transport',
-    placeholder: 'Van to Bazar, 30 min',
+    placeholder: 'Trailer to the co-op, 30 minutes',
     detailHint: 'Distance to the nearest buying point',
   },
   {
     id: 'credit',
     label: 'Credit line',
-    placeholder: 'Input loan through the cooperative',
+    placeholder: 'Input loan through the co-operative',
     detailHint: 'Limit, interest, and repayment timing',
   },
 ]
@@ -100,12 +100,12 @@ export const TEAM_ROLE_BY_ID = new Map(TEAM_ROLES.map((r) => [r.id, r]))
 /** Options in the "previous crop" selector — includes fallow and a non-crop. */
 export const PREVIOUS_CROP_OPTIONS = [
   { id: 'fallow', label: 'Fallow / rested' },
-  { id: 'aman-rice', label: 'Aman rice' },
-  { id: 'boro-rice', label: 'Boro rice' },
-  { id: 'jute', label: 'Jute' },
+  { id: 'winter-wheat', label: 'Winter wheat' },
+  { id: 'rice', label: 'Rice (paddy)' },
+  { id: 'maize', label: 'Maize' },
+  { id: 'soybean', label: 'Soybean' },
   { id: 'potato', label: 'Potato' },
   { id: 'tomato', label: 'Tomato' },
-  { id: 'mustard', label: 'Mustard' },
-  { id: 'lentil', label: 'Lentil' },
-  { id: 'maize', label: 'Maize' },
+  { id: 'canola', label: 'Winter canola' },
+  { id: 'lentil', label: 'Winter lentil' },
 ] as const

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Farmo domain model.
  *
  * Everything here is what a real backend would return; the demo keeps the same
@@ -86,7 +86,7 @@ export interface Project {
   summary: string
   region: string
   climateZone: ClimateZone
-  budgetBdt: number
+  budgetUsd: number
   equipment: EquipmentId[]
   accommodations: Accommodation[]
   farmIds: Id[]
@@ -97,7 +97,7 @@ export interface Project {
 
 /* --------------------------------------------------------------------- farms */
 
-export type AreaUnit = 'decimal' | 'bigha' | 'acre' | 'hectare'
+export type AreaUnit = 'acre' | 'hectare' | 'sqm'
 
 export interface Area {
   value: number
@@ -128,7 +128,7 @@ export interface Farm {
   projectId: Id
   name: string
   district: string
-  upazila: string
+  locality: string
   area: Area
   soilType: SoilType
   landType: LandType
@@ -143,13 +143,14 @@ export interface Farm {
 /* -------------------------------------------------------------------- plants */
 
 export type GrowthStageId =
-  | 'land-prep'
+  | 'establishment'
   | 'seedling'
   | 'vegetative'
   | 'tillering'
   | 'stem-elongation'
-  | 'flowering'
+  | 'heading'
   | 'panicle-initiation'
+  | 'flowering'
   | 'podding'
   | 'tuber-bulking'
   | 'grain-filling'
@@ -211,7 +212,7 @@ export interface PropertyOperation {
   farmId: Id
   entity: EntityKind
   entityId: Id
-  /** Human label of what was touched, e.g. "Aman rice BRRI dhan49 · soil pH". */
+  /** Human label of what was touched, e.g. "Winter wheat · soil pH". */
   entityLabel: string
   field: string
   fieldLabel: string

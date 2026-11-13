@@ -12,12 +12,14 @@
   Project,
   PropertyOperation,
   RiskVersion,
+  Severity,
   TeamRole,
   User,
 } from './types'
 import { buildSeedState, DEMO_PASSWORD, SEED_VERSION, type DbState } from './seed'
-import { analyzeFarm } from './engine'
+import { analyzeFarm, severityRank } from './engine'
 import { addDays, isoDate, rngFor } from './util'
+import { toAcre } from './catalog/geography'
 
 const STORAGE_KEY = 'farmo.demo.state.v3'
 
@@ -198,7 +200,7 @@ const FIELD_LABELS: Record<string, string> = {
   notes: 'Notes',
   name: 'Name',
   district: 'District',
-  upazila: 'Upazila',
+  locality: 'Locality',
   soilType: 'Soil type',
   landType: 'Land type',
   waterSource: 'Water source',
@@ -206,7 +208,7 @@ const FIELD_LABELS: Record<string, string> = {
   summary: 'Summary',
   region: 'Region',
   climateZone: 'Climate zone',
-  budgetBdt: 'Budget',
+  budgetUsd: 'Budget',
   equipment: 'Equipment',
 }
 
@@ -392,7 +394,18 @@ export const api = {
   },
 
   /* ----------------------------------------------------------- projects */
-  async listProjects(): Promise<Array<{ project: Project; farmCount: number; plantCount: number; areaAcre: number; criticalRisks: number; topRisk: string | null }>> {
+  async listProjects(): Promise<
+    Array<{
+      project: Project
+      farmCount: number
+      plantCount: number
+      areaAcre: number
+      criticalRisks: number
+      topRisk: string | null
+      adviceUpdatedAt: string | null
+      farms: Array<{ id: Id; name: string; district: string; plantCount: number; worstSeverity: Severity | null; headline: string | null }>
+    }>
+  > {
     await delay()
     const state = getState()
     return state.projects.map((project) => {
@@ -401,16 +414,30 @@ export const api = {
       let criticalRisks = 0
       let topRisk: string | null = null
       let areaAcre = 0
+      let adviceUpdatedAt: string | null = null
+      const farmRows: Array<{ id: Id; name: string; district: string; plantCount: number; worstSeverity: Severity | null; headline: string | null }> = []
+
       for (const farm of farms) {
         const risk = latestRisk(state, farm.id)
+        const advice = latestAdvice(state, farm.id)
+        if (advice && (!adviceUpdatedAt || advice.createdAt > adviceUpdatedAt)) adviceUpdatedAt = advice.createdAt
         const items = risk?.items ?? []
+        const major = items.filter((i) => severityRank(i.severity) >= severityRank('moderate'))
         criticalRisks += items.filter((i) => i.severity === 'high' || i.severity === 'critical').length
         const headline = items[0]
-        if (headline && (!topRisk || (headline.severity === 'critical' && topRisk !== 'critical'))) {
-          topRisk = headline.severity === 'low' ? null : headline.title
-        }
-        areaAcre += farm.area.value * (farm.area.unit === 'bigha' ? 0.330579 : farm.area.unit === 'decimal' ? 0.01 : farm.area.unit === 'acre' ? 1 : 2.47105)
+        if (headline && severityRank(headline.severity) >= severityRank('moderate')) topRisk = headline.title
+        else if (!topRisk && items.length) topRisk = items[0].title
+        areaAcre += toAcre(farm.area.value, farm.area.unit)
+        farmRows.push({
+          id: farm.id,
+          name: farm.name,
+          district: farm.district,
+          plantCount: state.plants.filter((pl) => pl.farmId === farm.id).length,
+          worstSeverity: major.length ? major[0].severity : (items[0]?.severity ?? null),
+          headline: major[0]?.title ?? items[0]?.title ?? null,
+        })
       }
+
       return {
         project,
         farmCount: farms.length,
@@ -418,6 +445,8 @@ export const api = {
         areaAcre: Math.round(areaAcre * 100) / 100,
         criticalRisks,
         topRisk,
+        adviceUpdatedAt,
+        farms: farmRows,
       }
     })
   },
@@ -428,7 +457,7 @@ export const api = {
     return state.projects.find((p) => p.id === projectId) ?? null
   },
 
-  async createProject(input: { name: string; summary: string; region: string; climateZone: Project['climateZone']; budgetBdt: number }): Promise<Project> {
+  async createProject(input: { name: string; summary: string; region: string; climateZone: Project['climateZone']; budgetUsd: number }): Promise<Project> {
     await delay()
     const state = getState()
     const user = requireUser(state)
@@ -438,7 +467,7 @@ export const api = {
       summary: input.summary.trim(),
       region: input.region,
       climateZone: input.climateZone,
-      budgetBdt: input.budgetBdt,
+      budgetUsd: input.budgetUsd,
       equipment: ['knapsack-sprayer', 'power-tiller'],
       accommodations: [],
       farmIds: [],
@@ -998,9 +1027,9 @@ export async function apiRequest(
             id: uid('prj'),
             name: body.name,
             summary: body.summary ?? '',
-            region: body.region ?? 'Northern Bangladesh',
+            region: body.region ?? 'North County',
             climateZone: body.climateZone ?? 'NW',
-            budgetBdt: body.budgetBdt ?? 0,
+            budgetUsd: body.budgetUsd ?? 0,
             equipment: body.equipment ?? [],
             accommodations: body.accommodations ?? [],
             farmIds: [],
@@ -1059,7 +1088,7 @@ export async function apiRequest(
             speciesId: body.speciesId,
             variety: body.variety,
             plantedAt: body.plantedAt ?? isoDate(new Date()),
-            area: body.area ?? { value: 1, unit: 'bigha' },
+            area: body.area ?? { value: 1, unit: 'acre' },
             soilPh: body.soilPh ?? 6.4,
             soilMoisture: body.soilMoisture ?? 58,
             nitrogen: body.nitrogen ?? 34,

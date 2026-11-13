@@ -1,122 +1,96 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect } from 'react'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { AppShell } from '@/components/app/AppShell'
+import { ErrorBoundary } from '@/components/app/ErrorBoundary'
+import { RequireAuth } from '@/components/app/RequireAuth'
+import { AccountRoute } from '@/routes/Account'
+import { DeveloperApiRoute } from '@/routes/DeveloperApi'
+import { FarmViewRoute } from '@/routes/FarmView'
+import { ProjectDetailRoute } from '@/routes/ProjectDetail'
+import { ProjectsRoute } from '@/routes/Projects'
+import { NotFoundRoute } from '@/routes/NotFound'
+import { ForgotPasswordRoute } from '@/routes/auth/ForgotPassword'
+import { LoginRoute } from '@/routes/auth/Login'
+import { OAuthConsentRoute } from '@/routes/auth/OAuthConsent'
+import { SignupRoute } from '@/routes/auth/Signup'
+import { VerifyRoute } from '@/routes/auth/Verify'
+import { useSession } from '@/store/session'
 
-function App() {
-  const [count, setCount] = useState(0)
+export function App() {
+  const init = useSession((s) => s.init)
+  const location = useLocation()
+
+  useEffect(() => {
+    void init()
+  }, [init])
+
+  // A fresh navigation should start at the top of the page, the way a real
+  // document load would.
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [location.pathname])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      {/* Public */}
+      <Route path="/login" element={<LoginRoute />} />
+      <Route path="/signup" element={<SignupRoute />} />
+      <Route path="/verify" element={<VerifyRoute />} />
+      <Route path="/forgot" element={<ForgotPasswordRoute />} />
+      <Route path="/oauth/:provider" element={<OAuthConsentRoute />} />
 
-      <div className="ticks"></div>
+      {/* Signed-in area */}
+      <Route
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      >
+        <Route
+          path="/projects"
+          element={
+            <ErrorBoundary scope="projects screen">
+              <ProjectsRoute />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/projects/:projectId"
+          element={
+            <ErrorBoundary scope="project screen">
+              <ProjectDetailRoute />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/farms/:farmId/:tab?"
+          element={
+            <ErrorBoundary scope="farm view">
+              <FarmViewRoute />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/developers"
+          element={
+            <ErrorBoundary scope="developer console">
+              <DeveloperApiRoute />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <ErrorBoundary scope="account screen">
+              <AccountRoute />
+            </ErrorBoundary>
+          }
+        />
+      </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <Route path="/" element={<Navigate to="/projects" replace />} />
+      <Route path="*" element={<NotFoundRoute />} />
+    </Routes>
   )
 }
-
-export default App

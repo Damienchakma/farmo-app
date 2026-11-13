@@ -155,8 +155,11 @@ disabled (series render complete).
 Agronomist voice: specific, numeric, actionable, and reasoned. Every recommendation carries a
 *why* ("lime now, because exchangeable acidity blocks P uptake at pH 5.6").
 
-- Crops, districts, and units are local and real: aman/boro rice, jute, potato, tomato,
-  mustard, lentil, maize; Rajshahi, Bogura, Mymensingh, Jessore, Dinajpur; decimals, bigha,
-  acres; mm rainfall; °C; ৳ (BDT); maund for market prices.
+- Crops, districts, and units are temperate and neutrally international: winter wheat, rice,
+  maize, soybean, potato, tomato, canola, lentil; Cedar Valley, Stonebridge, Millbrook,
+  Northfield, Riverside, Greenfield; acres, hectares, square metres; mm rainfall; °C;
+  US dollars; tonnes per acre for yields and $/tonne for market prices.
+- Names, places and organisations are plain and invented rather than drawn from one country,
+  so nothing on screen reads as a localisation of somewhere else.
 - Buttons are verbs ("Add plant", "Regenerate advice"), never "Submit" or "Continue".
 - No Lorem ipsum, no "John Doe", no marketing superlatives. Empty states say what to do next.

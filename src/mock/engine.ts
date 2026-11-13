@@ -49,14 +49,14 @@ export interface PlantContext {
 }
 
 const MOISTURE_TARGET: Record<string, [number, number]> = {
-  'aman-rice': [65, 82],
-  'boro-rice': [72, 88],
-  jute: [55, 72],
+  rice: [65, 82],
+  'winter-wheat': [55, 70],
+  maize: [58, 72],
+  soybean: [58, 72],
   potato: [58, 72],
   tomato: [55, 70],
-  mustard: [42, 58],
+  canola: [45, 60],
   lentil: [40, 55],
-  maize: [58, 72],
 }
 
 export function buildPlantContext(plant: Plant, now: Date): PlantContext {
@@ -130,7 +130,7 @@ export function computeConditions(contexts: PlantContext[], weather: WeatherDay[
   const next7 = forecast.slice(0, 7)
   const rainfall7dMm = rainfallSum(last7)
   const rainfallNext7dMm = rainfallSum(next7)
-  const heatStressDays = forecast.filter((d) => d.tMax >= 35).length
+  const heatStressDays = forecast.filter((d) => d.tMax >= 30).length
 
   const avgPh = contexts.length ? round(contexts.reduce((a, c) => a + c.plant.soilPh, 0) / contexts.length, 2) : 6.4
   const soilMoisture = contexts.length
@@ -299,8 +299,9 @@ export function buildFertilizerPlan(contexts: PlantContext[]): FertilizerRow[] {
       if (nutrient === 'N') {
         const stageName = (id: string) => c.species.stages.find((s) => s.id === id)?.label ?? id
         for (const split of c.species.nitrogenSplits) {
+          // Track the split as a per-acre rate so the schedule matches the plan.
           const key = stageName(split.atStage)
-          splitMap.set(key, (splitMap.get(key) ?? 0) + split.share * c.species.nutrientNeed.n * c.acre)
+          splitMap.set(key, (splitMap.get(key) ?? 0) + split.share * c.species.nutrientNeed.n)
         }
       }
     }
@@ -314,7 +315,7 @@ export function buildFertilizerPlan(contexts: PlantContext[]): FertilizerRow[] {
       nutrient === 'N'
         ? Array.from(splitMap.entries()).map(([when, amountPerAcre]) => ({
             when,
-            share: `${round(amountPerAcre / totalAcre, 1)} kg N/acre → ${Math.round((amountPerAcre / totalAcre / info.content) / 5) * 5 || 5} kg urea`,
+            share: `${round(amountPerAcre, 1)} kg N/acre → ${Math.round(amountPerAcre / info.content / 5) * 5 || 5} kg urea`,
           }))
         : []
 
@@ -407,7 +408,7 @@ export function buildAdvice(
   const totalAcre = contexts.reduce((a, c) => a + c.acre, 0)
   const forecast = weather.filter((d) => d.kind === 'forecast').slice(0, 14)
   const next7 = forecast.slice(0, 7)
-  const hotDays = forecast.filter((d) => d.tMax >= 35).length
+  const hotDays = forecast.filter((d) => d.tMax >= 30).length
   const sections: AdviceSection[] = []
   let confidence = 0.86
 
@@ -441,7 +442,7 @@ export function buildAdvice(
       lines.push(
         `On the ${salinePlot.map((c) => round(c.acre, 2)).join(' and ')} acre plots of ${salinePlot
           .map((c) => c.species.name)
-          .join(', ')}, dry-season salinity (district severity ${(district.salinitySeverity * 100).toFixed(0)} %) will reach the crop's tolerance limit of ${salinePlot[0].species.salinityLimitDsm} dS/m by late February. Shift those plots to salt-tolerant varieties or to a rabi crop with a shorter calendar.`,
+          .join(', ')}, dry-season salinity (district severity ${(district.salinitySeverity * 100).toFixed(0)} %) will reach the crop's tolerance limit of ${salinePlot[0].species.salinityLimitDsm} dS/m by late February. Shift those plots to salt-tolerant varieties or to a cool-season crop with a shorter calendar.`,
       )
       commodityDrivers.push(`District dry-season salinity severity ${(district.salinitySeverity * 100).toFixed(0)} %`)
     }
@@ -462,7 +463,7 @@ export function buildAdvice(
         `${volatile.c.species.name} is the price-risk commodity here (seasonal swing around ${(volatile.vol * 100).toFixed(0)} %). ${
           storageAcc
             ? `With ${storageAcc.label.toLowerCase()} available, hold the first 30–40 % of the harvest and sell in two lots.`
-            : 'Without on-farm storage, plan to sell in one negotiated lot rather than daily at the local haat.'
+            : 'Without on-farm storage, plan to sell in one negotiated lot rather than daily at the local spot price.'
         }`,
       )
       commodityDrivers.push(`Price volatility ${(volatile.vol * 100).toFixed(0)} % on ${volatile.c.species.name}`)
@@ -555,7 +556,7 @@ export function buildAdvice(
     if (lowOm && lowOm.verdict !== 'optimal') {
       blocks.push(
         p(
-          `Organic matter at ${lowOm.value} % is below the 1.5 % floor. Add 1.5–2 t/acre of well-rotted cow dung or grow a dhaincha green manure before the next paddy — it is the cheapest way to raise the cation exchange capacity and it holds the fertiliser you are already paying for.`,
+          `Organic matter at ${lowOm.value} % is below the 1.5 % floor. Add 1.5–2 t/acre of compost or farmyard manure, or sow a legume green manure such as vetch before the next cereal — it is the cheapest way to raise the cation exchange capacity, and it holds the fertiliser you are already paying for.`,
         ),
       )
       fertDrivers.push(`Organic matter ${lowOm.value} %`)
@@ -662,42 +663,50 @@ export function buildAdvice(
     const blocks: AdviceBlock[] = []
     const rotationDrivers: string[] = []
     const repeats = contexts.filter((c) => c.sameSpeciesLastSeason)
-    const riceOnRice = repeats.filter((c) => c.species.rotationGroup === 'rice')
-    const solanaceaeRepeat = repeats.filter((c) => c.species.rotationGroup === 'solanaceae')
+    const cerealsOnCereals = repeats.filter((c) => c.species.rotationGroup === 'cereal')
+    const solanaceaeRepeat = repeats.filter((c) => c.species.rotationGroup === 'solanaceae' || c.species.rotationGroup === 'tuber')
+    const riceRepeat = repeats.filter((c) => c.species.rotationGroup === 'rice')
 
-    if (riceOnRice.length) {
-      const alt = nextCropFor('aman-rice', farm)
+    if (cerealsOnCereals.length) {
+      const alt = nextCropFor('winter-wheat', farm)
+      const acres = round(cerealsOnCereals.reduce((a, c) => a + c.acre, 0), 2)
       blocks.push(
         p(
-          `${round(riceOnRice.reduce((a, c) => a + c.acre, 0), 2)} acres went from ${riceOnRice[0].previousCropLabel.toLowerCase()} straight into ${riceOnRice[0].species.name}. Continuous paddy is the single largest cause of the flat yield trend in the paddy belt: it builds up stem borer and blast inoculum, and it keeps the plough pan intact so roots never get below 15 cm.`,
+          `${acres} acres went from ${cerealsOnCereals[0].previousCropLabel.toLowerCase()} straight into ${cerealsOnCereals[0].species.name}. A second cereal on the same ground is the largest single drag on the yield trend: take-all, Septoria and stem borer carry over in the stubble, and the rooting zone stays compacted.`,
         ),
         {
           kind: 'ops',
           caption: 'Rotation to plan for the next window',
           rows: [
+            { label: `${alt.species} on ${acres} acres`, detail: alt.reason, when: alt.window },
             {
-              label: `${alt.species} on ${round(riceOnRice.reduce((a, c) => a + c.acre, 0), 2)} acres`,
-              detail: alt.reason,
-              when: alt.window,
-            },
-            {
-              label: 'Or a short-duration pulse where the land must return to boro',
-              detail: 'Lentil or grasspea fixes 30–40 kg N/acre and comes off in time for boro transplanting.',
-              when: 'sow by 30 November',
+              label: 'Or a short-season pulse where the land must return to a cereal',
+              detail: 'Soybean or lentil fixes 60–90 kg N/acre and comes off in time for autumn drilling.',
+              when: 'sow in the spring window',
             },
           ],
         },
       )
-      rotationDrivers.push(`Paddy-after-paddy on ${round(riceOnRice.reduce((a, c) => a + c.acre, 0), 2)} acres`)
+      rotationDrivers.push(`Cereal after cereal on ${acres} acres`)
+    }
+
+    if (riceRepeat.length) {
+      const acres = round(riceRepeat.reduce((a, c) => a + c.acre, 0), 2)
+      blocks.push(
+        p(
+          `Flooded rice has run two seasons on ${acres} acres. Continuous puddling keeps the plough pan intact so roots never get below 15 cm, and it carries stem borer forward. A break to a legume or an oilseed restores structure and breaks the cycle.`,
+        ),
+      )
+      rotationDrivers.push(`Rice after rice on ${acres} acres`)
     }
 
     if (solanaceaeRepeat.length) {
       blocks.push(
         p(
-          `${solanaceaeRepeat[0].species.name} on the same plot two seasons running carries soil-borne wilt, bacterial wilt and root-knot nematodes forward. Break it with a cereal or a mustard for at least one season — a 2-year gap is what actually clears bacterial wilt.`,
+          `${solanaceaeRepeat[0].species.name} on the same plot two seasons running carries soil-borne wilt, eelworm and blight forward. Break it with a cereal or an oilseed for at least one season — a two-year gap is what actually clears bacterial wilt.`,
         ),
       )
-      rotationDrivers.push(`Solanaceae repeated on ${round(solanaceaeRepeat.reduce((a, c) => a + c.acre, 0), 2)} acres`)
+      rotationDrivers.push(`Potato or tomato repeated on ${round(solanaceaeRepeat.reduce((a, c) => a + c.acre, 0), 2)} acres`)
     }
 
     if (!repeats.length) {
@@ -714,7 +723,7 @@ export function buildAdvice(
     if (!legumePresent) {
       blocks.push(
         p(
-          `No legume appears in the current plan. A single lentil or grasspea crop in the next rabi window replaces 30–40 kg of urea per acre and, more importantly, breaks the pest cycle that cereals share.`,
+          `No legume appears in the current plan. A single soybean or lentil crop in the next window replaces 60–90 kg of nitrogen per acre and, more importantly, breaks the pest and disease cycle that cereals share.`,
         ),
       )
       rotationDrivers.push('No legume in the current rotation')
@@ -784,16 +793,16 @@ export function buildAdvice(
     if (farm.soilType === 'saline-clay' || district.salinitySeverity > 0.4) {
       blocks.push(
         p(
-          `Canal water in ${district.name} turns saline from late February (dry-season severity ${(district.salinitySeverity * 100).toFixed(0)} %). Test with a handheld EC meter before each irrigation after mid-February; above 2 dS/m, switch to a tubewell source or delay the application until a freshwater tide.`,
+          `Canal water in ${district.name} turns brackish as the season dries out (dry-season salinity severity ${(district.salinitySeverity * 100).toFixed(0)} %). Test with a handheld EC meter before each irrigation; above 2 dS/m, switch to a well source or delay the application until a freshwater tide.`,
         ),
       )
       irrDrivers.push(`District dry-season salinity ${(district.salinitySeverity * 100).toFixed(0)} %`)
     }
 
-    if (crop0IsBoro(contexts)) {
+    if (contexts.some((c) => c.species.id === 'rice')) {
       blocks.push(
         p(
-          `For boro, alternate wetting and drying — let the water drop to 15 cm below the surface before re-flooding — saves 18–22 % of pumping cost with no measurable yield penalty, provided you never let the field crack during panicle initiation.`,
+          `For flooded rice, alternate wetting and drying — let the water drop to 15 cm below the surface before re-flooding — saves 18–22 % of pumping cost with no measurable yield penalty, provided you never let the field crack between panicle initiation and flowering.`,
         ),
       )
     }
@@ -859,26 +868,26 @@ export function buildAdvice(
     if (hotDays > 0) {
       blocks.push(
         p(
-          `${hotDays} day${hotDays === 1 ? '' : 's'} above 35 °C appear in the forecast. ${
-            contexts.some((c) => c.stage.id === 'flowering')
-              ? 'At flowering this raises spikelet sterility — irrigate in the early morning so the canopy stays cooler through the afternoon.'
+          `${hotDays} day${hotDays === 1 ? '' : 's'} above 30 °C appear in the forecast. ${
+            contexts.some((c) => c.stage.id === 'flowering' || c.stage.id === 'grain-filling')
+              ? 'Heat at flowering and grain fill removes grain sites and shortens the fill — irrigate in the early morning so the canopy stays cooler through the afternoon.'
               : 'Keep the soil surface moist to buffer the crop and avoid any mid-day spraying.'
           }`,
         ),
       )
-      timingDrivers.push(`${hotDays} forecast days ≥ 35 °C`)
+      timingDrivers.push(`${hotDays} forecast days ≥ 30 °C`)
     }
 
-    const coldNights = forecast.filter((d) => d.tMin <= 11).length
+    const coldNights = forecast.filter((d) => d.tMin <= 0).length
     if (coldNights > 2) {
       blocks.push(
         p(
-          `${coldNights} nights at or below 11 °C are forecast. Cold nights slow ${contexts
+          `${coldNights} frost nights are forecast (minimum at or below 0 °C). Frost slows ${contexts
             .map((c) => c.species.name.toLowerCase())
-            .join(' and ')} establishment and, in boro, can push flowering later into the hot spell. Keep a slightly deeper standing water layer overnight as a temperature buffer.`,
+            .join(' and ')} establishment and can kill exposed leaf. Hold nitrogen until the frost passes, avoid travelling on frozen or thawing soil, and keep the autumn-sown crop off the ridge tops where cold air settles.`,
         ),
       )
-      timingDrivers.push(`${coldNights} forecast nights ≤ 11 °C`)
+      timingDrivers.push(`${coldNights} forecast frost nights (≤ 0 °C)`)
     }
 
     const heavyRain = forecast.filter((d) => d.rainfallMm >= 25)
@@ -942,10 +951,6 @@ export function buildAdvice(
   return { sections, confidence: clamp(confidence, 0.5, 0.97) }
 }
 
-function crop0IsBoro(contexts: PlantContext[]): boolean {
-  return contexts.some((c) => c.species.id === 'boro-rice')
-}
-
 function monthName(m: number): string {
   return new Date(2026, m - 1, 1).toLocaleDateString('en-GB', { month: 'long' })
 }
@@ -957,42 +962,42 @@ export function nextCropFor(currentSpeciesId: string, farm: Farm): { species: st
   if (group === 'rice') {
     if (farm.landType === 'high' || district.zone === 'NW') {
       return {
-        species: 'Mustard or lentil',
-        reason: 'Both are short, use residual moisture, and leave the plot free for boro transplanting in January.',
-        window: 'sow 10–30 November',
+        species: 'Winter canola or lentil',
+        reason: 'Both are drilled into the paddy stubble, use the residual moisture, and dry the profile out again for the next spring crop.',
+        window: 'drill late August to early October',
       }
     }
     return {
-      species: 'Potato or mustard',
-      reason: 'A rabi break in the paddy cycle reduces stem borer carryover and improves soil structure in heavy land.',
-      window: 'plant from mid-November',
+      species: 'Canola or a pulse',
+      reason: 'A break from flooded culture reduces stem borer carryover and lets the plough pan crack over winter.',
+      window: 'drill from early September',
     }
   }
-  if (group === 'solanaceae' || group === 'root') {
+  if (group === 'solanaceae' || group === 'tuber') {
     return {
-      species: 'Maize or aman rice',
-      reason: 'A cereal between two vegetable crops interrupts nematode and wilt pressure, which cannot be fixed with chemicals.',
-      window: 'kharif window, sow with the first monsoon rain',
+      species: 'Winter wheat or a pulse',
+      reason: 'A cereal or a legume between two vegetable crops interrupts eelworm and wilt pressure, which no chemical fixes.',
+      window: 'drill in the autumn window',
     }
   }
   if (group === 'legume' || group === 'oilseed') {
     return {
-      species: 'Boro rice or maize',
+      species: 'Winter wheat or maize',
       reason: 'Following a pulse or an oilseed, cereal yields rise 8–12 % on the residual nitrogen alone.',
-      window: 'transplant or sow December–January',
+      window: 'drill September–October or sow maize in spring',
     }
   }
   if (group === 'fibre') {
     return {
-      species: 'Aman rice then lentil',
-      reason: 'Jute to Aman is the classic rotation: the fibre stubble rots down and the paddy comes in on improved structure.',
-      window: 'transplant July–August',
+      species: 'Rice or maize in the summer slot',
+      reason: 'A summer cereal after a winter crop uses the rainfall you already get, and the stubble is easy to work down.',
+      window: 'sow or transplant May–June',
     }
   }
   return {
-    species: 'A pulse (lentil) or an oilseed (mustard)',
-    reason: 'Alternating a cereal with a pulse or oilseed is the lowest-cost way to stop the yield plateau.',
-    window: 'sow with the rabi window',
+    species: 'A pulse or an oilseed',
+    reason: 'Alternating a cereal with a pulse or an oilseed is the lowest-cost way to stop the yield plateau.',
+    window: 'drill in the autumn window',
   }
 }
 
@@ -1040,7 +1045,6 @@ export function analyzeFarm(
   const operationIds = options.literalOperations ?? []
   const origin = options.origin ?? 'auto'
   const actor = options.actor ?? { id: 'system', name: 'Farmo engine' }
-  const stamp = isoDate(now)
 
   const adviceVersion: AdviceVersion = {
     id: `adv-${farm.id}-${now.getTime().toString(36)}`,
@@ -1074,7 +1078,7 @@ export function analyzeFarm(
 
   return {
     farmId: farm.id,
-    computedAt: `${stamp}T${now.toISOString().slice(11)}`,
+    computedAt: now.toISOString(),
     conditions,
     advice: adviceVersion,
     risk: riskVersion,
@@ -1109,13 +1113,13 @@ const CATEGORY_LABELS: Record<RiskCategory, string> = {
   market: 'Market & price',
 }
 
-function bdt(n: number): string {
-  return `৳ ${Math.round(n).toLocaleString('en-US')}`
+function usd(n: number): string {
+  return `$${Math.round(n).toLocaleString('en-US')}`
 }
 
 function cropValuePerAcre(c: PlantContext): number {
   const variety = c.species.varieties.find((v) => v.name === c.varietyName) ?? c.species.varieties[0]
-  return variety.yieldMaundPerAcre * c.species.marketBaseBdtPerMaund
+  return variety.yieldTonnesPerAcre * c.species.marketPricePerTonne
 }
 
 export function buildRisks(
@@ -1169,7 +1173,7 @@ export function buildRisks(
         title: `Moisture deficit building on ${worst.c.label}`,
         severity,
         likelihood: round(clamp(score * 0.92 + 0.05, 0.05, 0.95), 2),
-        impact: `A ${lossPct} % yield loss on ${round(worst.c.acre, 2)} acres is about ${bdt((lossPct / 100) * cropValuePerAcre(worst.c) * worst.c.acre)} at ${district.name} farm-gate prices.`,
+        impact: `A ${lossPct} % yield loss on ${round(worst.c.acre, 2)} acres is about ${usd((lossPct / 100) * cropValuePerAcre(worst.c) * worst.c.acre)} at ${district.name} farm-gate prices.`,
         window: worst.c.stage.waterCritical ? 'Next 7–10 days (water-critical stage)' : 'Next 14 days',
         blocks: [
           p(
@@ -1222,7 +1226,7 @@ export function buildRisks(
         title: `Waterlogging exposure on ${farm.landType} land`,
         severity,
         likelihood: round(clamp(score * 0.85 + 0.08, 0.05, 0.93), 2),
-        impact: `Ponding beyond ${pondingDays} days at the current stage costs roughly ${round(lossShare * 100, 0)} % of the standing crop on ${round(totalAcre, 2)} acres — about ${bdt(lossShare * contexts.reduce((a, c) => a + cropValuePerAcre(c) * c.acre, 0))}.`,
+        impact: `Ponding beyond ${pondingDays} days at the current stage costs roughly ${round(lossShare * 100, 0)} % of the standing crop on ${round(totalAcre, 2)} acres — about ${usd(lossShare * contexts.reduce((a, c) => a + cropValuePerAcre(c) * c.acre, 0))}.`,
         window: 'Next 14 days',
         blocks: [
           p(
@@ -1294,7 +1298,7 @@ export function buildRisks(
           title: `${pest.name} pressure likely on ${c.species.name}`,
           severity,
           likelihood: round(clamp(score * 0.9, 0.08, 0.94), 2),
-          impact: `${lossPct} % of ${round(c.acre, 2)} acres is about ${bdt((lossPct / 100) * cropValuePerAcre(c) * c.acre)} if the infection is not interrupted.`,
+          impact: `${lossPct} % of ${round(c.acre, 2)} acres is about ${usd((lossPct / 100) * cropValuePerAcre(c) * c.acre)} if the infection is not interrupted.`,
           window: pest.kind === 'disease' ? 'Next 10–14 days (weather-driven)' : 'Next 2–3 weeks as the population builds',
           blocks: [
             p(
@@ -1351,7 +1355,7 @@ export function buildRisks(
         title: `${deficits.map((d) => d.nutrient).join(', ') || 'Nutrient'} balance below crop requirement`,
         severity,
         likelihood: round(clamp(0.32 + score * 0.6, 0.2, 0.95), 2),
-        impact: `Left uncorrected the imbalance usually shows as ${shorthand} — about ${yieldPenalty} % of yield, or ${bdt((yieldPenalty / 100) * contexts.reduce((a, c) => a + cropValuePerAcre(c) * c.acre, 0))}.`,
+        impact: `Left uncorrected the imbalance usually shows as ${shorthand} — about ${yieldPenalty} % of yield, or ${usd((yieldPenalty / 100) * contexts.reduce((a, c) => a + cropValuePerAcre(c) * c.acre, 0))}.`,
         window: 'Correction window: the next 3 weeks',
         blocks: [
           p(`Soil supply against requirement: ${deficits.map((d) => `${d.nutrient} short ${round(d.gapKgPerAcre, 1)} kg/acre`).join('; ') || 'no shortfall at the current crop mix'}.`),
@@ -1392,11 +1396,11 @@ export function buildRisks(
         title: `${c.species.name} price swing at harvest`,
         severity,
         likelihood: round(clamp(0.3 + volatility * 0.6, 0.2, 0.9), 2),
-        impact: `A ±${swing} % move on ${round(c.acre, 2)} acres is roughly ±${bdt((swing / 100) * exposure)} on the harvest value.`,
+        impact: `A ±${swing} % move on ${round(c.acre, 2)} acres is roughly ±${usd((swing / 100) * exposure)} on the harvest value.`,
         window: daysToHarvest !== null ? `Harvest in ${daysToHarvest} days` : 'Already at the harvest window',
         blocks: [
           p(
-            `${c.species.name} typically moves ±${swing} % within the season at ${district.name} prices (base ${bdt(c.species.marketBaseBdtPerMaund)} per maund). ${
+            `${c.species.name} typically moves ±${swing} % within the season at ${district.name} prices (base ${usd(c.species.marketPricePerTonne)} per tonne). ${
               daysToHarvest !== null && daysToHarvest <= 35
                 ? `The crop is ${daysToHarvest} days from harvest, so the selling decision is imminent.`
                 : `The crop is ${daysToHarvest ?? '—'} days from harvest — there is still time to plan a selling route.`
@@ -1405,7 +1409,7 @@ export function buildRisks(
           list([
             storageAcc
               ? `Use ${storageAcc.label.toLowerCase()} to stagger sales: move 40 % straight after harvest to cover cash needs and hold the balance for the recovery that normally follows peak arrivals.`
-              : 'With no storage recorded, arrange a group or contract sale rather than selling on the day of arrival, when the haat price is at its worst.',
+              : 'With no storage recorded, arrange a group or contract sale rather than selling on the day of arrival, when the spot price is at its worst.',
             transportAcc
               ? `${transportAcc.label} — check the wholesale price at the nearest larger market before accepting the local quote.`
               : 'Distance to market is not recorded; a short transport gap can hide a 15 % price difference between two markets.',

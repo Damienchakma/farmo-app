@@ -33,13 +33,22 @@ Update rule: after every milestone, move finished items to **Done** with a date,
 - [x] Vite + React 19 + TS strict scaffold; deps installed
 - [x] `DESIGN.md` — palette, type, spacing, motion, a11y contract, voice
 - [x] `PROGRESS.md`, `DECISIONS.md`
+- [x] Mock layer: types, catalogue, deterministic engine, seed, persisted API
+- [x] UI primitives: controls, surfaces, data, feedback, overlays, OTP input
+- [x] App shell: sidebar, breadcrumbs, command palette, dev menu, inbox
+- [x] Auth routes: sign in, sign up, verify, forgot password, OAuth consent
+- [x] Projects list, project detail with farm CRUD, farm view (2026-11-13)
+- [x] Farm tabs: Overview, Plants, Advice, Risk, Visualizations, Teams, Settings
+- [x] Developer API page with working console against the mock handlers
+- [x] Account page: profile, verification, providers, user switching
+- [x] International content pass: temperate crops, neutral districts, USD, acres (2026-11-13)
 
 ### In progress
-- Base tokens + Tailwind v4 theme + shell
+- Final review pass over screenshots (desktop + mobile) before the demo
 
 ### Next
-- Mock layer: types → seed → engine → db/api
-- Auth screens, then dashboard, then farm view tabs
+- Optional: code-split the charts bundle (recharts) and add the remaining polish noted in DESIGN.md
+
 
 ### Known issues
 - `npm.ps1` cannot run under the machine execution policy; use `npm.cmd`.
