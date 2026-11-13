@@ -49,6 +49,13 @@ Update rule: after every milestone, move finished items to **Done** with a date,
 ### Next
 - Optional: code-split the charts bundle (recharts) and add the remaining polish noted in DESIGN.md
 
+### Verification (2026-11-13)
+- `tsc -p tsconfig.app.json --noEmit` clean; production build clean.
+- `node scripts/shots.mjs tour` — every route on desktop and mobile, zero console errors.
+- `node scripts/flows.mjs` — 9/9 interaction checks: sign in, edit soil pH, advice names the
+  change that caused it, regenerate advice, API console returns a real payload, and an
+  invitation appears in the team ledger.
+
 
 ### Known issues
 - `npm.ps1` cannot run under the machine execution policy; use `npm.cmd`.
