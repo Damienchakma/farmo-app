@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/app/AppShell'
 import { ErrorBoundary } from '@/components/app/ErrorBoundary'
 import { RequireAuth } from '@/components/app/RequireAuth'
@@ -14,6 +14,7 @@ import { LoginRoute } from '@/routes/auth/Login'
 import { OAuthConsentRoute } from '@/routes/auth/OAuthConsent'
 import { SignupRoute } from '@/routes/auth/Signup'
 import { VerifyRoute } from '@/routes/auth/Verify'
+import { LandingRoute } from '@/routes/Landing'
 import { useSession } from '@/store/session'
 
 export function App() {
@@ -32,7 +33,10 @@ export function App() {
 
   return (
     <Routes>
-      {/* Public */}
+      {/* Public Landing Page */}
+      <Route path="/" element={<LandingRoute />} />
+
+      {/* Auth Routes */}
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/signup" element={<SignupRoute />} />
       <Route path="/verify" element={<VerifyRoute />} />
@@ -89,7 +93,6 @@ export function App() {
         />
       </Route>
 
-      <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="*" element={<NotFoundRoute />} />
     </Routes>
   )
