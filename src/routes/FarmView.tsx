@@ -8,6 +8,7 @@ import {
   MapPin,
   Plus,
   RefreshCw,
+  Sparkles,
   Sprout,
   Sun,
   Thermometer,
@@ -25,6 +26,7 @@ import { EmptyState, InlineAlert, RecalcBanner, Skeleton } from '@/components/ui
 import { ConfirmDialog } from '@/components/ui/overlays'
 import { Divider, Panel, PanelBody, PanelHead, SectionHead } from '@/components/ui/surfaces'
 import { AdviceTab, RiskTab } from '@/components/farm/AnalysisTabs'
+import { AssistantTab } from '@/components/farm/AssistantTab'
 import { PlantsTab } from '@/components/farm/PlantsTab'
 import { TeamsTab } from '@/components/farm/TeamsTab'
 import { VisualizationsTab } from '@/components/farm/VisualizationsTab'
@@ -102,6 +104,7 @@ function FarmTabBar({ tabs, active }: { tabs: TabDef[]; active: string }) {
 
 const TABS: TabDef[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'assistant', label: 'Assistant' },
   { id: 'plants', label: 'Plants' },
   { id: 'advice', label: 'Advice' },
   { id: 'risk', label: 'Risk' },
@@ -192,6 +195,7 @@ export function FarmViewRoute() {
             <div className={cn(recalc.active && 'mt-5')} key={activeTab}>
               <div className="fade-up">
                 {activeTab === 'overview' && <OverviewTab onAddPlant={() => setAddOpen(true)} />}
+                {activeTab === 'assistant' && <AssistantTab />}
                 {activeTab === 'plants' && <PlantsTab />}
                 {activeTab === 'advice' && <AdviceTab />}
                 {activeTab === 'risk' && <RiskTab />}
@@ -223,6 +227,7 @@ function FarmHeader({
   const { conditions } = analysis
   const district = districtByName(farm.district)
   const zone = CLIMATE_ZONES[project.climateZone]
+  const navigate = useNavigate()
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
@@ -264,6 +269,9 @@ function FarmHeader({
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <Button variant="outline" icon={<Sparkles />} onClick={() => navigate(`/farms/${farm.id}/assistant`)}>
+            Ask assistant
+          </Button>
           <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
             Add plant
           </Button>

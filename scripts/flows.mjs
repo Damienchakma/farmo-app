@@ -80,6 +80,23 @@ async function main() {
     await page.getByText('Advice regenerated').waitFor({ timeout: 20000 })
     ok('advice regenerated on demand')
 
+    /* assistant ----------------------------------------------------------- */
+    await page.goto(`${BASE}/farms/farm-northfield/assistant`, { waitUntil: 'networkidle' })
+    await pause(800)
+    await page.getByRole('button', { name: /The water balance/i }).click()
+    await page.waitForFunction(() => /water balance shows/i.test(document.body.innerText), null, { timeout: 20000 })
+    ok('assistant answered from the water ledger')
+    await page.getByRole('tab', { name: /Overview/ }).click()
+    await page.waitForURL('**/overview', { timeout: 15000 })
+    await page.getByRole('tab', { name: /Assistant/ }).click()
+    await page.waitForURL('**/assistant', { timeout: 15000 })
+    await pause(500)
+    const followUp = await page.getByText('Which crop is most water-stressed?').count()
+    if (!followUp) throw new Error('assistant conversation did not survive a tab switch')
+    ok('assistant conversation survives a tab switch')
+    await page.screenshot({ path: 'screenshots/21-flow-assistant.png', fullPage: true })
+    ok('captured screenshots/21-flow-assistant.png')
+
     /* API console --------------------------------------------------------- */
     await page.goto(`${BASE}/developers`, { waitUntil: 'networkidle' })
     await pause(900)

@@ -95,6 +95,7 @@ const TOUR = [
   { name: '02-project-detail', path: '/projects/prj-north' },
   { name: '03-farm-overview', path: '/farms/farm-northfield/overview' },
   { name: '04-farm-plants', path: '/farms/farm-northfield/plants' },
+  { name: '04b-farm-assistant', path: '/farms/farm-northfield/assistant' },
   { name: '05-farm-advice', path: '/farms/farm-northfield/advice' },
   { name: '06-farm-risk', path: '/farms/farm-riverside/risk' },
   { name: '07-farm-visualizations', path: '/farms/farm-northfield/visualizations' },
@@ -113,6 +114,9 @@ async function runTour(browser) {
   const clean = instrument(page, 'tour')
 
   // Public screens first (no session).
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+  await pause(900)
+  await shoot(page, '00-landing')
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
   await pause(900)
   await shoot(page, '00-login')
