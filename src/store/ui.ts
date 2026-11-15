@@ -46,6 +46,10 @@ interface UiState {
   /** Farmer mode simplifies the farm view; researcher keeps the full detail. */
   mode: ExperienceMode
   setMode: (mode: ExperienceMode) => void
+
+  /** Bumped after project/farm/account mutations so the sidebar re-lists projects. */
+  dataVersion: number
+  bumpDataVersion: () => void
 }
 
 let toastId = 0
@@ -87,7 +91,13 @@ export const useUi = create<UiState>((set, get) => ({
     }
     set({ mode })
   },
+
+  dataVersion: 0,
+  bumpDataVersion: () => set({ dataVersion: get().dataVersion + 1 }),
 }))
 
 /** Convenience for non-React call sites. */
 export const toast = (input: Omit<Toast, 'id' | 'ttl'> & { ttl?: number }) => useUi.getState().toast(input)
+
+/** Convenience for non-React call sites: invalidate the sidebar project list. */
+export const bumpDataVersion = () => useUi.getState().bumpDataVersion()

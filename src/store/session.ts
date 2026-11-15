@@ -16,6 +16,7 @@ interface SessionState {
   oauthSignIn: (provider: 'google' | 'facebook' | 'yahoo', email: string, name: string) => Promise<User>
   signOut: () => Promise<void>
   switchUser: (userId: string) => Promise<User>
+  deleteAccount: (userId: string) => Promise<void>
   updateProfile: (patch: Partial<Pick<User, 'name' | 'phone' | 'jobTitle'>>) => Promise<User>
 }
 
@@ -69,6 +70,12 @@ export const useSession = create<SessionState>((set) => ({
     const user = await api.switchUser(userId)
     set({ user })
     return user
+  },
+
+  deleteAccount: async (userId) => {
+    await api.deleteAccount(userId)
+    const [user, users] = await Promise.all([api.currentUser(), api.listUsers()])
+    set({ user, users })
   },
 
   updateProfile: async (patch) => {

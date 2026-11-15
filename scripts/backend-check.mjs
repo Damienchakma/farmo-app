@@ -76,6 +76,17 @@ refresh = registered.refresh_token
 if (!token || !refresh) fail('register tokens', 'no access/refresh token in the response')
 ok('register returns a token pair', `user ${registered.user?.email ?? '?'}`)
 
+expect('default password rejected', await call('POST', '/auth/login', { auth: false, body: { email, password: 'farmo1234' } }), 401)
+ok('registered account rejects the demo password')
+if (registered.dev_code) {
+  if (registered.user.email_verified) fail('initial verification', 'account was auto-verified')
+  expect('verification requires auth', await call('POST', '/auth/otp/verify', { auth: false, body: { email, code: registered.dev_code } }), 401)
+  expect('verify email', await call('POST', '/auth/otp/verify', { body: { email, code: registered.dev_code } }), 200)
+  expect('code replay', await call('POST', '/auth/otp/verify', { body: { email, code: registered.dev_code } }), 410)
+  expect('resend throttle', await call('POST', '/auth/otp/request', { body: { email } }), 429)
+  ok('email code requires authentication, is single-use and throttled')
+}
+
 /* me --------------------------------------------------------------------- */
 const me = expect('me', await call('GET', '/auth/me'), 200)
 if (me.email !== email) fail('me identity', `expected ${email}, got ${me.email}`)
@@ -210,10 +221,35 @@ const updatedFarm = expect(
 if (updatedFarm.latitude !== 33.7) fail('farm update round-trip', JSON.stringify(updatedFarm))
 ok('update farm merges coordinates')
 
+const otherEmail = `other.${stamp}@farmo.dev`
+const other = expect('second account', await call('POST', '/auth/register', { auth: false, body: { email: otherEmail, password } }), 200)
+const otherProjects = expect('isolated projects', await call('GET', '/projects/', { tok: other.access_token }), 200)
+if (otherProjects.length) fail('account isolation', 'new account can see projects')
+expect('foreign project read', await call('GET', `/projects/${projectId}`, { tok: other.access_token }), 403)
+expect('foreign plant edit', await call('PATCH', `/projects/${projectId}/farms/${farmId}/plants/${plantId}`, { tok: other.access_token, body: { properties: { soil_ph: 8 } } }), 403)
+expect('delete second account', await call('DELETE', '/auth/me', { tok: other.access_token }), 200)
+ok('accounts cannot see or edit each other’s project records')
+
+if (registered.dev_code) {
+  const reset = expect('request reset', await call('POST', '/auth/otp/request', { auth: false, body: { email, purpose: 'reset' } }), 200)
+  expect('reset password', await call('POST', '/auth/password/reset', { auth: false, body: { email, code: reset.dev_code, password: 'Changed-password-1234' } }), 200)
+  expect('reset replay', await call('POST', '/auth/password/reset', { auth: false, body: { email, code: reset.dev_code, password } }), 410)
+  expect('old refresh revoked', await call('POST', '/auth/refresh', { auth: false, body: { refresh_token: refresh } }), 401)
+  expect('old password rejected', await call('POST', '/auth/login', { auth: false, body: { email, password } }), 401)
+  const login = expect('new password accepted', await call('POST', '/auth/login', { auth: false, body: { email, password: 'Changed-password-1234' } }), 200)
+  token = login.access_token
+  refresh = login.refresh_token
+  ok('password reset is single-use and revokes refresh sessions')
+}
+
 /* cleanup ---------------------------------------------------------------- */
 expect('delete plant', await call('DELETE', `/projects/${projectId}/farms/${farmId}/plants/${plantId}`), 200)
 expect('delete farm', await call('DELETE', `/projects/${projectId}/farms/${farmId}`), 200)
 expect('delete project', await call('DELETE', `/projects/${projectId}`), 200)
 ok('delete plant, farm and project')
+expect('delete account', await call('DELETE', '/auth/me'), 200)
+expect('deleted user access', await call('GET', '/projects/'), 401)
+expect('deleted user refresh', await call('POST', '/auth/refresh', { auth: false, body: { refresh_token: refresh } }), 401)
+ok('account deletion removes authentication access')
 
 console.log(`\n${passed} checks passed. Frontend contract satisfied.`)

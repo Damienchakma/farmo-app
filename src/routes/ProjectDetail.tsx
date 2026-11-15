@@ -48,7 +48,8 @@ import {
 } from '@/mock/catalog'
 import type { Accommodation, EquipmentId, Farm, Project } from '@/mock/types'
 import { USERS } from '@/mock/seed'
-import { toast, useUi } from '@/store/ui'
+import { useSession } from '@/store/session'
+import { bumpDataVersion, toast, useUi } from '@/store/ui'
 
 const farmSchema = z.object({
   name: z.string().min(3, 'Give the block a name at least 3 characters long.').max(60, 'Keep it under 60 characters.'),
@@ -79,6 +80,8 @@ export function ProjectDetailRoute() {
   const [accommodationEditing, setAccommodationEditing] = useState<Accommodation | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Farm | null>(null)
   const [busy, setBusy] = useState(false)
+  const user = useSession((s) => s.user)
+  const mode = useUi((s) => s.mode)
 
   const reloadAll = () => {
     project.reload()
@@ -104,6 +107,8 @@ export function ProjectDetailRoute() {
 
   const p = project.data
   const rows = farms.data ?? []
+  const isOwner = Boolean(p && user && p.ownerId === user.id)
+  const canConfigure = isOwner && mode === 'researcher'
 
   return (
     <div className="mx-auto max-w-[1240px]">
@@ -125,12 +130,16 @@ export function ProjectDetailRoute() {
             description={p.summary}
             actions={
               <>
-                <Button variant="outline" icon={<Pencil />} onClick={() => setEditOpen(true)}>
-                  Edit profile
-                </Button>
-                <Button variant="primary" icon={<Plus />} onClick={() => setAddFarmOpen(true)}>
-                  Add farm
-                </Button>
+                {canConfigure && (
+                  <Button variant="outline" icon={<Pencil />} onClick={() => setEditOpen(true)}>
+                    Edit profile
+                  </Button>
+                )}
+                {isOwner && (
+                  <Button variant="primary" icon={<Plus />} onClick={() => setAddFarmOpen(true)}>
+                    Add farm
+                  </Button>
+                )}
               </>
             }
           />
@@ -149,9 +158,11 @@ export function ProjectDetailRoute() {
                   : undefined
               }
               actions={
-                <Button size="sm" variant="outline" icon={<Plus />} onClick={() => setAddFarmOpen(true)}>
-                  Add farm
-                </Button>
+                isOwner ? (
+                  <Button size="sm" variant="outline" icon={<Plus />} onClick={() => setAddFarmOpen(true)}>
+                    Add farm
+                  </Button>
+                ) : undefined
               }
             />
             {farms.loading && (
@@ -258,10 +269,14 @@ export function ProjectDetailRoute() {
                                   <DropdownItem icon={<Users />} onSelect={() => navigate(`/farms/${row.farm.id}/teams`)}>
                                     Team &amp; invitations
                                   </DropdownItem>
-                                  <DropdownSeparator />
-                                  <DropdownItem icon={<Trash2 />} danger onSelect={() => setDeleting(row.farm)}>
-                                    Delete farm
-                                  </DropdownItem>
+                                  {canConfigure && (
+                                    <>
+                                      <DropdownSeparator />
+                                      <DropdownItem icon={<Trash2 />} danger onSelect={() => setDeleting(row.farm)}>
+                                        Delete farm
+                                      </DropdownItem>
+                                    </>
+                                  )}
                                 </DropdownContent>
                               </Dropdown>
                             </span>
@@ -327,9 +342,11 @@ export function ProjectDetailRoute() {
               title="Equipment"
               meta={p ? `${p.equipment.length} of ${EQUIPMENT.length} recorded` : undefined}
               actions={
-                <Button size="sm" variant="quiet" icon={<Pencil />} onClick={() => setEquipmentOpen(true)}>
-                  Edit
-                </Button>
+                canConfigure ? (
+                  <Button size="sm" variant="quiet" icon={<Pencil />} onClick={() => setEquipmentOpen(true)}>
+                    Edit
+                  </Button>
+                ) : undefined
               }
             />
             <ul className="divide-y divide-line">
@@ -359,9 +376,11 @@ export function ProjectDetailRoute() {
               title="Accommodations"
               meta={p ? `${p.accommodations.filter((a) => a.available).length} available` : undefined}
               actions={
-                <Button size="sm" variant="quiet" icon={<Plus />} onClick={() => setAccommodationEditing('new')}>
-                  Add
-                </Button>
+                canConfigure ? (
+                  <Button size="sm" variant="quiet" icon={<Plus />} onClick={() => setAccommodationEditing('new')}>
+                    Add
+                  </Button>
+                ) : undefined
               }
             />
             <ul className="divide-y divide-line">
@@ -381,6 +400,7 @@ export function ProjectDetailRoute() {
                     type="button"
                     className="link flex-none text-[11px]"
                     onClick={() => setAccommodationEditing(acc)}
+                    hidden={!canConfigure}
                   >
                     edit
                   </button>
@@ -431,6 +451,7 @@ export function ProjectDetailRoute() {
         onOpenChange={setAddFarmOpen}
         onCreated={(farm) => {
           reloadAll()
+          bumpDataVersion()
           toast({ tone: 'success', title: `${farm.name} added`, body: 'Now add the plants growing on it.' })
           navigate(`/farms/${farm.id}/overview`)
         }}
@@ -490,6 +511,7 @@ export function ProjectDetailRoute() {
               toast({ tone: 'info', title: `${deleting.name} deleted` })
               setDeleting(null)
               reloadAll()
+              bumpDataVersion()
             })
             .finally(() => setBusy(false))
         }}

@@ -9,6 +9,7 @@ import { Button, Field, Input } from '@/components/ui/controls'
 import { InlineAlert } from '@/components/ui/feedback'
 import { Divider } from '@/components/ui/surfaces'
 import { ApiError } from '@/mock/api'
+import { backendEnabled } from '@/lib/backend'
 import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
 import { AuthHeading, AuthLayout, DemoCredentials } from './AuthLayout'
@@ -39,7 +40,7 @@ export function LoginRoute() {
     try {
       const user = await login(values.email, values.password)
       const target = (location.state as { from?: string } | null)?.from ?? '/projects'
-      toast({ tone: 'success', title: `Welcome back, ${user.name.split(' ')[0]}`, body: 'Signed in to the Farmo demo.' })
+      toast({ tone: 'success', title: `Welcome back, ${user.name.split(' ')[0]}`, body: backendEnabled ? 'Signed in to Farmo.' : 'Signed in to the Farmo demo.' })
       navigate(target, { replace: true })
     } catch (error) {
       setFormError(error instanceof ApiError ? error.message : 'Sign-in failed. Try again.')
@@ -50,7 +51,7 @@ export function LoginRoute() {
     <AuthLayout
       footer={
         <span>
-          Mock authentication: no mail is sent, no password is stored. Data lives in this browser only.
+          {backendEnabled ? 'Sign in using the password you chose at sign-up.' : 'Demo accounts live in this browser. Seeded accounts use the demo password; new accounts use the password chosen at sign-up.'}
         </span>
       }
     >
@@ -141,7 +142,7 @@ export function LoginRoute() {
         </Link>
       </p>
 
-      <DemoCredentials />
+      {!backendEnabled && <DemoCredentials />}
     </AuthLayout>
   )
 }

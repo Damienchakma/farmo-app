@@ -608,7 +608,7 @@ export const backendApi = {
   },
 
   async signup(input: { name: string; email: string; phone: string; password: string }): Promise<{ user: User; code: string }> {
-    const data = await request<{ access_token: string; refresh_token: string; user: RawUser }>(
+    const data = await request<{ access_token: string; refresh_token: string; user: RawUser; dev_code?: string | null }>(
       'POST',
       '/auth/register',
       { name: input.name.trim(), email: input.email.trim().toLowerCase(), phone: input.phone.trim(), password: input.password },
@@ -616,8 +616,33 @@ export const backendApi = {
     )
     writeTokens({ access: data.access_token, refresh: data.refresh_token })
     cachedUser = mapUser(data.user)
-    // Dev-mode backend verifies email immediately; there is no code to enter.
-    return { user: cachedUser, code: '' }
+    return { user: cachedUser, code: data.dev_code ?? '' }
+  },
+
+  async requestOtp(email: string, purpose: 'verify-email' | 'verify-phone' | 'reset' = 'verify-email'): Promise<string> {
+    const result = await request<{ dev_code?: string | null }>('POST', '/auth/otp/request',
+      { email: email.trim().toLowerCase(), purpose }, purpose !== 'reset')
+    return result.dev_code ?? ''
+  },
+
+  async verifyOtp(email: string, code: string, purpose: 'verify-email' | 'verify-phone' | 'reset' = 'verify-email'): Promise<User> {
+    const result = await request<{ user: RawUser }>('POST', '/auth/otp/verify',
+      { email: email.trim().toLowerCase(), code, purpose })
+    cachedUser = mapUser(result.user)
+    return cachedUser
+  },
+
+  async completePasswordReset(email: string, code: string, password: string): Promise<void> {
+    await request('POST', '/auth/password/reset', { email: email.trim().toLowerCase(), code, password }, false)
+    clearTokens()
+  },
+
+  async deleteAccount(userId: Id): Promise<void> {
+    const me = await backendApi.currentUser()
+    if (!me || me.id !== userId) throw new ApiError(403, 'You can only delete your own account.')
+    await request('DELETE', '/auth/me')
+    clearTokens()
+    writeIndex({ farms: {}, plants: {} })
   },
 
   async currentUser(): Promise<User | null> {

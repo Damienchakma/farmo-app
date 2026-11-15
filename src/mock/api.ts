@@ -16,10 +16,11 @@
   TeamRole,
   User,
 } from './types'
-import { buildSeedState, DEMO_PASSWORD, SEED_VERSION, type DbState } from './seed'
+import { buildSeedState, DEMO_PASSWORD, SEED_VERSION, USERS, type DbState } from './seed'
 import { analyzeFarm, severityRank } from './engine'
 import { addDays, isoDate, rngFor } from './util'
 import { toAcre } from './catalog/geography'
+import { TEAM_ROLE_BY_ID } from './catalog'
 import { FIELD_LABELS, formatValue } from './changes'
 import { ApiError, backendApi, backendEnabled } from '../lib/backend'
 
@@ -36,6 +37,12 @@ function readStorage(): DbState | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as DbState
+    if (parsed.version === 5) {
+      parsed.version = SEED_VERSION
+      parsed.credentials = Object.fromEntries(USERS.map((user) => [user.id, DEMO_PASSWORD]))
+      parsed.authChallenges = []
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+    }
     if (parsed.version !== SEED_VERSION) return null
     return parsed
   } catch {
@@ -114,6 +121,55 @@ function projectOfFarm(state: DbState, farmId: Id): Project {
   return project
 }
 
+/** Accepted membership for the signed-in user on a farm, matched by id or email. */
+function acceptedMembership(state: DbState, farmId: Id, user: User): Membership | undefined {
+  const email = user.email.toLowerCase()
+  return state.memberships.find(
+    (m) => m.farmId === farmId && m.status === 'accepted' && (m.userId === user.id || m.email.toLowerCase() === email),
+  )
+}
+
+/** Property writes are for the owner, agronomists and managers — never viewers or field workers. */
+function requireFarmEdit(state: DbState, farmId: Id): User {
+  const user = requireUser(state)
+  if (projectOfFarm(state, farmId).ownerId === user.id) return user
+  const membership = acceptedMembership(state, farmId, user)
+  if (membership && TEAM_ROLE_BY_ID.get(membership.role)?.canEdit) return user
+  throw new ApiError(403, 'You have read-only access to this farm. Ask the owner for an editor role to make changes.')
+}
+
+function requireProjectOwner(state: DbState, projectId: Id): User {
+  const user = requireUser(state)
+  const project = state.projects.find((p) => p.id === projectId)
+  if (!project) throw new ApiError(404, `Project ${projectId} not found.`)
+  if (project.ownerId !== user.id) throw new ApiError(403, 'Only the project owner can change this programme.')
+  return user
+}
+
+function requireTeamManage(state: DbState, farmId: Id): User {
+  const user = requireUser(state)
+  if (projectOfFarm(state, farmId).ownerId === user.id) return user
+  const membership = acceptedMembership(state, farmId, user)
+  if (membership && membership.role === 'manager') return user
+  throw new ApiError(403, 'Only the owner or a farm manager can manage the team.')
+}
+
+/** Projects the signed-in user owns, or has an accepted team role on one of whose farms. */
+function visibleProjects(state: DbState): Project[] {
+  const userId = state.sessionUserId
+  if (!userId) return []
+  const email = state.users.find((u) => u.id === userId)?.email.toLowerCase()
+  return state.projects.filter((project) => {
+    if (project.ownerId === userId) return true
+    return state.memberships.some(
+      (m) =>
+        m.status === 'accepted' &&
+        project.farmIds.includes(m.farmId) &&
+        (m.userId === userId || (email != null && m.email.toLowerCase() === email)),
+    )
+  })
+}
+
 function plantsOfFarm(state: DbState, farmId: Id): Plant[] {
   return state.plants.filter((p) => p.farmId === farmId)
 }
@@ -168,7 +224,8 @@ const mockApi = {
     const state = getState()
     const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
     if (!user) throw new ApiError(401, 'No Farmo account matches that email address.')
-    if (password !== DEMO_PASSWORD) throw new ApiError(401, 'That password is not correct. Check it and try again.')
+    const expected = state.credentials[user.id]
+    if (!expected || password !== expected) throw new ApiError(401, 'That password is not correct. Check it and try again.')
     state.sessionUserId = user.id
     persist(state)
     return user
@@ -200,6 +257,7 @@ const mockApi = {
     }
     const code = makeCode(email, 'verify-email')
     state.users.push(user)
+    state.credentials[user.id] = input.password
     state.authChallenges.push({
       id: uid('chg'),
       email,
@@ -238,7 +296,7 @@ const mockApi = {
     const challenge = state.authChallenges.find(
       (c) => c.email.toLowerCase() === email.trim().toLowerCase() && c.purpose === purpose && !c.consumed,
     )
-    if (!challenge) throw new ApiError(410, 'That code has expired. Request a new one.')
+    if (!challenge || new Date(challenge.expiresAt).getTime() <= Date.now()) throw new ApiError(410, 'That code has expired. Request a new one.')
     if (challenge.code !== code.trim()) throw new ApiError(422, 'That code is not correct. Six digits, no spaces.')
     challenge.consumed = true
     const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
@@ -249,18 +307,18 @@ const mockApi = {
     return user
   },
 
-  async completePasswordReset(email: string, code: string, _password: string): Promise<void> {
+  async completePasswordReset(email: string, code: string, password: string): Promise<void> {
     await delay()
     const state = getState()
     const challenge = state.authChallenges.find(
       (c) => c.email.toLowerCase() === email.trim().toLowerCase() && c.purpose === 'reset' && !c.consumed,
     )
-    if (!challenge || challenge.code !== code) throw new ApiError(422, 'That reset code is not valid.')
+    if (!challenge || challenge.code !== code || new Date(challenge.expiresAt).getTime() <= Date.now()) throw new ApiError(422, 'That reset code is not valid.')
     challenge.consumed = true
     const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
     if (!user) throw new ApiError(404, 'No Farmo account matches that email address.')
     user.emailVerified = true
-    user.providers = user.providers.includes('google') ? user.providers : user.providers
+    state.credentials[user.id] = password
     persist(state)
   },
 
@@ -324,6 +382,32 @@ const mockApi = {
     return getState().users
   },
 
+  /** Remove an account and everything it owns. Deleting yourself ends the session. */
+  async deleteAccount(userId: Id): Promise<void> {
+    await delay()
+    const state = getState()
+    const user = state.users.find((u) => u.id === userId)
+    if (!user) throw new ApiError(404, 'That account no longer exists.')
+    const ownedProjectIds = state.projects.filter((p) => p.ownerId === userId).map((p) => p.id)
+    const ownedFarmIds = new Set(state.farms.filter((f) => ownedProjectIds.includes(f.projectId)).map((f) => f.id))
+    state.projects = state.projects.filter((p) => p.ownerId !== userId)
+    state.farms = state.farms.filter((f) => !ownedFarmIds.has(f.id))
+    state.plants = state.plants.filter((pl) => !ownedFarmIds.has(pl.farmId))
+    state.operations = state.operations.filter((op) => !ownedFarmIds.has(op.farmId))
+    state.advice = state.advice.filter((a) => !ownedFarmIds.has(a.farmId))
+    state.risk = state.risk.filter((r) => !ownedFarmIds.has(r.farmId))
+    const email = user.email.toLowerCase()
+    state.memberships = state.memberships.filter(
+      (m) => m.userId !== userId && m.email.toLowerCase() !== email && !ownedFarmIds.has(m.farmId),
+    )
+    state.notifications = state.notifications.filter((n) => n.userId !== userId && !ownedFarmIds.has(n.farmId ?? ''))
+    state.authChallenges = state.authChallenges.filter((c) => c.email.toLowerCase() !== email)
+    state.users = state.users.filter((u) => u.id !== userId)
+    delete state.credentials[userId]
+    if (state.sessionUserId === userId) state.sessionUserId = null
+    persist(state)
+  },
+
   async updateProfile(patch: Partial<Pick<User, 'name' | 'phone' | 'jobTitle'>>): Promise<User> {
     await delay()
     const state = getState()
@@ -355,7 +439,7 @@ const mockApi = {
   > {
     await delay()
     const state = getState()
-    return state.projects.map((project) => {
+    return visibleProjects(state).map((project) => {
       const farms = state.farms.filter((f) => project.farmIds.includes(f.id))
       const plants = state.plants.filter((pl) => farms.some((f) => f.id === pl.farmId))
       let criticalRisks = 0
@@ -401,7 +485,7 @@ const mockApi = {
   async getProject(projectId: Id): Promise<Project | null> {
     await delay()
     const state = getState()
-    return state.projects.find((p) => p.id === projectId) ?? null
+    return visibleProjects(state).find((p) => p.id === projectId) ?? null
   },
 
   async createProject(input: { name: string; summary: string; region: string; climateZone: Project['climateZone']; budgetUsd: number }): Promise<Project> {
@@ -430,9 +514,8 @@ const mockApi = {
   async updateProject(projectId: Id, patch: Partial<Project>): Promise<Project> {
     await delay()
     const state = getState()
-    const user = requireUser(state)
-    const project = state.projects.find((p) => p.id === projectId)
-    if (!project) throw new ApiError(404, `Project ${projectId} not found.`)
+    const user = requireProjectOwner(state, projectId)
+    const project = state.projects.find((p) => p.id === projectId)!
     const ops: PropertyOperation[] = []
     for (const [field, value] of Object.entries(patch)) {
       const before = project[field as keyof Project]
@@ -462,8 +545,8 @@ const mockApi = {
   async deleteProject(projectId: Id): Promise<void> {
     await delay()
     const state = getState()
-    const project = state.projects.find((p) => p.id === projectId)
-    if (!project) throw new ApiError(404, `Project ${projectId} not found.`)
+    requireProjectOwner(state, projectId)
+    const project = state.projects.find((p) => p.id === projectId)!
     const farmIds = new Set(project.farmIds)
     state.projects = state.projects.filter((p) => p.id !== projectId)
     state.farms = state.farms.filter((f) => !farmIds.has(f.id))
@@ -479,6 +562,7 @@ const mockApi = {
   async listFarms(projectId: Id): Promise<Array<{ farm: Farm; plantCount: number; worstRisk: RiskVersion | undefined; conditions: FarmAnalysis['conditions'] }>> {
     await delay()
     const state = getState()
+    if (!visibleProjects(state).some((p) => p.id === projectId)) throw new ApiError(403, 'You do not have access to this project.')
     return state.farms
       .filter((f) => f.projectId === projectId)
       .map((farm) => ({
@@ -491,12 +575,16 @@ const mockApi = {
 
   async getFarmBundle(farmId: Id): Promise<FarmBundle> {
     await delay()
-    return bundle(getState(), farmId)
+    const state = getState()
+    const project = projectOfFarm(state, farmId)
+    if (!visibleProjects(state).some((p) => p.id === project.id)) throw new ApiError(403, 'You do not have access to this farm.')
+    return bundle(state, farmId)
   },
 
   async createFarm(input: Omit<Farm, 'id' | 'createdAt' | 'updatedAt'>): Promise<Farm> {
     await delay()
     const state = getState()
+    requireProjectOwner(state, input.projectId)
     const farm: Farm = { ...input, id: uid('farm'), createdAt: new Date().toISOString(), updatedAt: isoDate(new Date()) }
     state.farms.push(farm)
     const project = state.projects.find((p) => p.id === farm.projectId)
@@ -507,10 +595,10 @@ const mockApi = {
     return farm
   },
 
-  async updateFarm(farmId: Id, patch: Partial<Farm>, actor?: User): Promise<FarmBundle> {
+  async updateFarm(farmId: Id, patch: Partial<Farm>): Promise<FarmBundle> {
     await delay()
     const state = getState()
-    const user = actor ?? requireUser(state)
+    const user = requireFarmEdit(state, farmId)
     const farm = state.farms.find((f) => f.id === farmId)
     if (!farm) throw new ApiError(404, `Farm ${farmId} not found.`)
     const ops: PropertyOperation[] = []
@@ -545,6 +633,7 @@ const mockApi = {
     const state = getState()
     const farm = state.farms.find((f) => f.id === farmId)
     if (!farm) throw new ApiError(404, `Farm ${farmId} not found.`)
+    requireProjectOwner(state, farm.projectId)
     state.farms = state.farms.filter((f) => f.id !== farmId)
     state.plants = state.plants.filter((pl) => pl.farmId !== farmId)
     state.memberships = state.memberships.filter((m) => m.farmId !== farmId)
@@ -561,7 +650,7 @@ const mockApi = {
   async addPlant(farmId: Id, input: Omit<Plant, 'id' | 'farmId' | 'createdAt' | 'updatedAt'>): Promise<FarmBundle> {
     await delay()
     const state = getState()
-    const user = requireUser(state)
+    const user = requireFarmEdit(state, farmId)
     const farm = state.farms.find((f) => f.id === farmId)
     if (!farm) throw new ApiError(404, `Farm ${farmId} not found.`)
     const plant: Plant = {
@@ -597,9 +686,9 @@ const mockApi = {
   async updatePlant(plantId: Id, patch: Partial<Plant>): Promise<{ bundle: FarmBundle; operations: PropertyOperation[] }> {
     await delay()
     const state = getState()
-    const user = requireUser(state)
     const plant = state.plants.find((p) => p.id === plantId)
     if (!plant) throw new ApiError(404, `Plant ${plantId} not found.`)
+    const user = requireFarmEdit(state, plant.farmId)
     const ops: PropertyOperation[] = []
     for (const [field, value] of Object.entries(patch)) {
       const before = plant[field as keyof Plant]
@@ -630,9 +719,9 @@ const mockApi = {
   async deletePlant(plantId: Id): Promise<FarmBundle> {
     await delay()
     const state = getState()
-    const user = requireUser(state)
     const plant = state.plants.find((p) => p.id === plantId)
     if (!plant) throw new ApiError(404, `Plant ${plantId} not found.`)
+    const user = requireFarmEdit(state, plant.farmId)
     state.plants = state.plants.filter((p) => p.id !== plantId)
     const op: PropertyOperation = {
       id: uid('op'),
@@ -658,7 +747,7 @@ const mockApi = {
   async regenerateAdvice(farmId: Id): Promise<FarmBundle> {
     await delay()
     const state = getState()
-    const user = requireUser(state)
+    const user = requireFarmEdit(state, farmId)
     await delay(RECALC_LATENCY * 0.75)
     return commitRecalculation(state, farmId, [], user, 'manual')
   },
@@ -681,7 +770,7 @@ const mockApi = {
   async inviteMember(farmId: Id, input: { email: string; role: TeamRole; message: string }): Promise<Membership> {
     await delay()
     const state = getState()
-    const user = requireUser(state)
+    const user = requireTeamManage(state, farmId)
     const email = input.email.trim().toLowerCase()
     if (state.memberships.some((m) => m.farmId === farmId && m.email === email && (m.status === 'pending' || m.status === 'accepted'))) {
       throw new ApiError(409, 'That address is already on this farm team.')
@@ -725,6 +814,9 @@ const mockApi = {
     const user = requireUser(state)
     const membership = state.memberships.find((m) => m.id === membershipId)
     if (!membership) throw new ApiError(404, 'That invitation no longer exists.')
+    if (membership.status !== 'pending' || membership.email.toLowerCase() !== user.email.toLowerCase()) {
+      throw new ApiError(403, 'Only the invited account can respond to a pending invitation.')
+    }
     membership.status = decision
     membership.respondedAt = new Date().toISOString()
     membership.userId = membership.userId ?? user.id
@@ -753,6 +845,7 @@ const mockApi = {
     const state = getState()
     const membership = state.memberships.find((m) => m.id === membershipId)
     if (!membership) throw new ApiError(404, 'That team member is no longer on the farm.')
+    requireTeamManage(state, membership.farmId)
     membership.status = 'revoked'
     membership.respondedAt = new Date().toISOString()
     persist(state)
@@ -764,6 +857,7 @@ const mockApi = {
     const state = getState()
     const membership = state.memberships.find((m) => m.id === membershipId)
     if (!membership) throw new ApiError(404, 'That team member is no longer on the farm.')
+    requireTeamManage(state, membership.farmId)
     membership.role = role
     persist(state)
     return membership

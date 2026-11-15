@@ -8,6 +8,7 @@
   Terminal,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Field, Input, Segmented } from '@/components/ui/controls'
 import { Ledger, Stamp, Td, Th } from '@/components/ui/data'
 import { EmptyState, Skeleton } from '@/components/ui/feedback'
@@ -18,7 +19,7 @@ import { cn } from '@/lib/cn'
 import { formatDate, relativeTime } from '@/lib/format'
 import { api, apiRequest, apiRequestLog, latencyRange } from '@/mock/api'
 import type { ApiKey } from '@/mock/types'
-import { toast } from '@/store/ui'
+import { toast, useUi } from '@/store/ui'
 
 interface Endpoint {
   id: string
@@ -102,8 +103,34 @@ export function DeveloperApiRoute() {
   const [revoking, setRevoking] = useState<ApiKey | null>(null)
   const [createdKey, setCreatedKey] = useState<ApiKey | null>(null)
   const { copied, copy } = useCopyToClipboard()
+  const mode = useUi((s) => s.mode)
+  const setMode = useUi((s) => s.setMode)
+  const navigate = useNavigate()
 
   const activeKeys = (keys.data ?? []).filter((k) => k.status === 'active')
+
+  if (mode === 'farmer') {
+    return (
+      <div className="mx-auto max-w-[680px] py-8">
+        <Panel>
+          <EmptyState
+            title="The developer API is a researcher tool"
+            description="Farmer mode keeps the interface focused on the field. Switch to researcher mode to manage API keys and call Farmo from your own tools."
+            actions={
+              <>
+                <Button variant="primary" icon={<Terminal />} onClick={() => setMode('researcher')}>
+                  Switch to researcher mode
+                </Button>
+                <Button variant="quiet" onClick={() => navigate('/projects')}>
+                  Back to projects
+                </Button>
+              </>
+            }
+          />
+        </Panel>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-[1240px]">

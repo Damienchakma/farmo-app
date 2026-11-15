@@ -8,6 +8,7 @@ import { Button, Field, Input } from '@/components/ui/controls'
 import { InlineAlert } from '@/components/ui/feedback'
 import { OtpInput } from '@/components/ui/OtpInput'
 import { ApiError } from '@/mock/api'
+import { backendEnabled } from '@/lib/backend'
 import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
 import { AuthHeading, AuthLayout } from './AuthLayout'
@@ -59,7 +60,7 @@ export function ForgotPasswordRoute() {
       toast({
         tone: 'code',
         title: 'Password reset code',
-        body: `Six digits for ${values.email}. In the live product this arrives by email.`,
+        body: generated ? 'Development code only — no email was sent.' : 'If the account exists, a code will arrive by email. Check spam too.',
         code: generated,
         ttl: 20000,
       })
@@ -90,8 +91,7 @@ export function ForgotPasswordRoute() {
     <AuthLayout
       footer={
         <span>
-          Reset codes are deterministic in the demo, so the same address always receives the same six digits on the same
-          day.
+          {backendEnabled ? 'Reset codes expire after 10 minutes and can only be used once.' : 'Demo reset codes appear in the notification; no email is sent.'}
         </span>
       }
     >

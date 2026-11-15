@@ -12,10 +12,12 @@ import { ConfirmDialog, Dialog, Dropdown, DropdownContent, DropdownItem, Dropdow
 import { Panel, PanelHead } from '@/components/ui/surfaces'
 import { formatArea, formatDate, relativeTime, titleCase } from '@/lib/format'
 import { cn } from '@/lib/cn'
+import { canEditFarm } from '@/lib/permissions'
 import { AREA_UNITS, IRRIGATION_TYPES, PREVIOUS_CROP_OPTIONS, SPECIES, getSpecies, seasonLength, stageForDay, stageById } from '@/mock/catalog'
 import { addDays, daysBetween, isoDate } from '@/mock/util'
 import type { GrowthStageId, Plant } from '@/mock/types'
 import { useFarm } from '@/store/farm'
+import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
 
 const plantSchema = z.object({
@@ -56,13 +58,25 @@ export function PlantsTab() {
   const [deleting, setDeleting] = useState<Plant | null>(null)
   const [expanded, setExpanded] = useState<string | null>(params.get('plant'))
   const [busy, setBusy] = useState(false)
+  const user = useSession((s) => s.user)
 
   const plants = bundle?.plants ?? []
+  const canEdit = bundle ? canEditFarm(bundle, user) : false
 
   useEffect(() => {
     const fromUrl = params.get('plant')
     if (fromUrl && plants.some((p) => p.id === fromUrl)) setExpanded(fromUrl)
   }, [params, plants])
+
+  // The header "Add plant" shortcut routes here with ?add=1 so the dialog opens
+  // even when the farm already has crops.
+  useEffect(() => {
+    if (params.get('add') !== '1') return
+    if (canEdit) setAdding(true)
+    const next = new URLSearchParams(params)
+    next.delete('add')
+    setParams(next, { replace: true })
+  }, [params, setParams, canEdit])
 
   if (!bundle) return null
 
@@ -86,9 +100,11 @@ export function PlantsTab() {
             title="No plants recorded"
             description="Add the first crop with its planting date and the last soil test values. Advice, risk and every chart are derived from these properties."
             actions={
-              <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
-                Add a plant
-              </Button>
+              canEdit ? (
+                <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
+                  Add a plant
+                </Button>
+              ) : undefined
             }
           />
         </Panel>
@@ -98,8 +114,15 @@ export function PlantsTab() {
             title="Plant ledger"
             meta={`${plants.length} plot record${plants.length === 1 ? '' : 's'} · total ${formatArea({ value: plants.reduce((a, p) => a + (p.area.unit === 'acre' ? p.area.value : p.area.value * 0.404686), 0), unit: 'acre' })}`}
             actions={
-              <span className="hidden items-center gap-3 sm:flex">
-                <MetaPair label="Stage source" value="planting date" />
+              <span className="flex items-center gap-3">
+                <span className="hidden sm:flex">
+                  <MetaPair label="Stage source" value="planting date" />
+                </span>
+                {canEdit && (
+                  <Button size="sm" variant="quiet" icon={<Plus />} onClick={() => setAdding(true)}>
+                    Add plant
+                  </Button>
+                )}
               </span>
             }
           />
@@ -176,7 +199,9 @@ export function PlantsTab() {
                         </Td>
                         <Td className="col-actions">
                           <span className="actions-inner">
-                            <Button size="sm" variant="quiet" icon={<Pencil />} aria-label={`Edit ${plant.variety}`} onClick={() => setEditing(plant)} />
+                            {canEdit && (
+                              <Button size="sm" variant="quiet" icon={<Pencil />} aria-label={`Edit ${plant.variety}`} onClick={() => setEditing(plant)} />
+                            )}
                             <Dropdown>
                               <DropdownTrigger asChild>
                                 <button type="button" className="btn btn-sm btn-quiet btn-icon" aria-label={`More actions for ${plant.variety}`}>
@@ -184,9 +209,11 @@ export function PlantsTab() {
                                 </button>
                               </DropdownTrigger>
                               <DropdownContent>
-                                <DropdownItem icon={<Pencil />} onSelect={() => setEditing(plant)}>
-                                  Edit properties
-                                </DropdownItem>
+                                {canEdit && (
+                                  <DropdownItem icon={<Pencil />} onSelect={() => setEditing(plant)}>
+                                    Edit properties
+                                  </DropdownItem>
+                                )}
                                 <DropdownItem
                                   icon={<CalendarDays />}
                                   onSelect={() =>
@@ -195,10 +222,14 @@ export function PlantsTab() {
                                 >
                                   Stage &amp; calendar
                                 </DropdownItem>
-                                <DropdownSeparator />
-                                <DropdownItem icon={<Trash2 />} danger onSelect={() => setDeleting(plant)}>
-                                  Remove plant
-                                </DropdownItem>
+                                {canEdit && (
+                                  <>
+                                    <DropdownSeparator />
+                                    <DropdownItem icon={<Trash2 />} danger onSelect={() => setDeleting(plant)}>
+                                      Remove plant
+                                    </DropdownItem>
+                                  </>
+                                )}
                               </DropdownContent>
                             </Dropdown>
                           </span>
@@ -207,7 +238,7 @@ export function PlantsTab() {
                       {isExpanded && (
                         <tr key={`${plant.id}-detail`}>
                           <td colSpan={10} className="!bg-paper-sunken/60 !p-0">
-                            <PlantDetail plant={plant} onEdit={() => setEditing(plant)} />
+                            <PlantDetail plant={plant} onEdit={canEdit ? () => setEditing(plant) : undefined} />
                           </td>
                         </tr>
                       )}
@@ -331,7 +362,7 @@ export function PlantsTab() {
   )
 }
 
-function PlantDetail({ plant, onEdit }: { plant: Plant; onEdit: () => void }) {
+function PlantDetail({ plant, onEdit }: { plant: Plant; onEdit?: () => void }) {
   const species = getSpecies(plant.speciesId)
   const days = daysBetween(plant.plantedAt, TODAY())
   const stage = stageForDay(species, days)
@@ -404,9 +435,11 @@ function PlantDetail({ plant, onEdit }: { plant: Plant; onEdit: () => void }) {
           <p className="mt-1 text-sm leading-relaxed text-ink-2">{plant.notes || 'No note recorded for this plot.'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" icon={<Pencil />} onClick={onEdit}>
-            Edit properties
-          </Button>
+          {onEdit && (
+            <Button size="sm" variant="outline" icon={<Pencil />} onClick={onEdit}>
+              Edit properties
+            </Button>
+          )}
           <Button
             size="sm"
             variant="quiet"

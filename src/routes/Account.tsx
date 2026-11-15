@@ -10,14 +10,15 @@ import { Divider, Panel, PanelBody, PanelHead, SectionHead } from '@/components/
 import { useAsync } from '@/lib/hooks'
 import { formatDate } from '@/lib/format'
 import { api } from '@/mock/api'
-import type { OAuthProvider } from '@/mock/types'
+import { backendEnabled } from '@/lib/backend'
+import type { OAuthProvider, User } from '@/mock/types'
 import { useSession } from '@/store/session'
-import { toast, useUi } from '@/store/ui'
+import { bumpDataVersion, toast, useUi } from '@/store/ui'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', facebook: 'Facebook', yahoo: 'Yahoo' }
 
 export function AccountRoute() {
-  const { user, users, updateProfile, signOut, switchUser, requestOtp, verifyOtp } = useSession()
+  const { user, users, updateProfile, signOut, switchUser, deleteAccount, requestOtp, verifyOtp } = useSession()
   const mode = useUi((s) => s.mode)
   const setMode = useUi((s) => s.setMode)
   const navigate = useNavigate()
@@ -28,6 +29,8 @@ export function AccountRoute() {
   const [saving, setSaving] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [phoneError, setPhoneError] = useState<string | null>(null)
+  const [deletingAccount, setDeletingAccount] = useState<User | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   if (!user) return null
 
@@ -123,7 +126,7 @@ export function AccountRoute() {
           </Panel>
 
           <Panel>
-            <PanelHead title="Verified contact points" meta="Codes are shown in a dev toast — there is no mail server in the demo" display />
+            <PanelHead title="Verified contact points" meta={backendEnabled ? 'Codes are delivered by email or SMS when configured on the server' : 'Codes are shown in a dev toast — no mail is sent'} display />
             <PanelBody className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-line px-3.5 py-3">
                 <div className="flex items-start gap-3">
@@ -147,7 +150,7 @@ export function AccountRoute() {
                         void requestOtp(user.email, 'verify-email').then((code) => {
                           toast({ tone: 'code', title: 'Email verification code', body: `Six digits for ${user.email}.`, code, ttl: 20000 })
                           navigate('/verify', { state: { email: user.email, code } })
-                        })
+                        }).catch((error: unknown) => toast({ tone: 'danger', title: 'Could not send code', body: error instanceof Error ? error.message : 'Try again.' }))
                       }
                     >
                       Verify now
@@ -179,11 +182,11 @@ export function AccountRoute() {
                           toast({
                             tone: 'code',
                             title: 'Mobile verification code',
-                            body: `${user.phone ? `Sent to ${user.phone}` : 'Add a number first, then verify it'}. In the demo the code is shown here.`,
+                            body: code ? 'Development code only — no SMS was sent.' : `Sent to ${user.phone}.`,
                             code,
                             ttl: 20000,
                           })
-                        })
+                        }).catch((error: unknown) => toast({ tone: 'danger', title: 'Could not send code', body: error instanceof Error ? error.message : 'Try again.' }))
                       }
                     >
                       Send code
@@ -205,7 +208,7 @@ export function AccountRoute() {
                       )
                   }}
                 >
-                  <Field label="Six-digit code" hint="Shown in the toast when you request it.">
+                  <Field label="Six-digit code" hint={backendEnabled ? 'Enter the code received by SMS.' : 'Shown in the toast when you request it.'}>
                     {({ id, ...aria }) => (
                       <Input id={id} name="code" inputMode="numeric" maxLength={6} placeholder="123456" className="w-[130px] font-mono" {...aria} />
                     )}
@@ -222,14 +225,13 @@ export function AccountRoute() {
             <PanelHead title="Session and data" display />
             <PanelBody className="space-y-4">
               <p className="text-sm leading-relaxed text-ink-2">
-                The demo keeps everything in this browser's local storage. Signing out clears the session, not the data;
-                resetting restores the seeded projects, farms and history.
+                {backendEnabled ? 'Your records are saved on the server. Signing out keeps them; deleting your account permanently removes the projects and farms you own.' : 'Demo records stay in this browser. Signing out keeps them; resetting restores the seeded projects, farms and history.'}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" icon={<LogOut />} onClick={() => setSignOutOpen(true)}>
                   Sign out
                 </Button>
-                <Button
+                {!backendEnabled && <Button
                   variant="danger"
                   icon={<Trash2 />}
                   onClick={() =>
@@ -240,6 +242,9 @@ export function AccountRoute() {
                   }
                 >
                   Reset demo data
+                </Button>}
+                <Button variant="danger" icon={<Trash2 />} onClick={() => setDeletingAccount(user)}>
+                  Delete my account
                 </Button>
               </div>
             </PanelBody>
@@ -337,46 +342,56 @@ export function AccountRoute() {
             </PanelBody>
           </Panel>
 
-          <Panel>
+          {!backendEnabled && <Panel>
             <PanelHead title="Demo: switch user" meta="Inspect the invitee side of the flow" display />
             <PanelBody className="space-y-2">
               {users.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() =>
-                    void switchUser(u.id).then(() => {
-                      toast({ tone: 'info', title: `Now signed in as ${u.name}`, body: u.jobTitle })
-                      navigate('/projects')
-                    })
-                  }
-                  className="flex w-full items-center gap-3 rounded-sm border border-line px-3 py-2.5 text-left hover:bg-paper-sunken"
-                >
-                  <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-paper-sunken text-[10px] font-semibold text-ink-2">
-                    {u.initials}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-ink">{u.name}</span>
-                    <span className="block truncate text-xs text-ink-3">
-                      {u.jobTitle} · {u.email}
+                <div key={u.id} className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void switchUser(u.id).then(() => {
+                        toast({ tone: 'info', title: `Now signed in as ${u.name}`, body: u.jobTitle })
+                        navigate('/projects')
+                      })
+                    }
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-sm border border-line px-3 py-2.5 text-left hover:bg-paper-sunken"
+                  >
+                    <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-paper-sunken text-[10px] font-semibold text-ink-2">
+                      {u.initials}
                     </span>
-                  </span>
-                  {u.id === user.id ? <Stamp tone="green">current</Stamp> : <UserCog size={14} className="text-ink-3" aria-hidden />}
-                </button>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-ink">{u.name}</span>
+                      <span className="block truncate text-xs text-ink-3">
+                        {u.jobTitle} · {u.email}
+                      </span>
+                    </span>
+                    {u.id === user.id ? <Stamp tone="green">current</Stamp> : <UserCog size={14} className="text-ink-3" aria-hidden />}
+                  </button>
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    icon={<Trash2 />}
+                    aria-label={`Remove ${u.name}`}
+                    onClick={() => setDeletingAccount(u)}
+                  />
+                </div>
               ))}
               <p className="text-xs leading-relaxed text-ink-3">
                 Two of the demo accounts have a pending farm invitation, so the notification bell has something to act on.
               </p>
             </PanelBody>
-          </Panel>
+          </Panel>}
 
           <Panel>
             <PanelHead title="Documentation" display />
             <PanelBody className="space-y-2 text-sm">
-              <Link to="/developers" className="link inline-flex items-center gap-1.5">
-                <ExternalLink size={12} aria-hidden />
-                Developer API reference and console
-              </Link>
+              {mode === 'researcher' && (
+                <Link to="/developers" className="link inline-flex items-center gap-1.5">
+                  <ExternalLink size={12} aria-hidden />
+                  Developer API reference and console
+                </Link>
+              )}
               <p className="text-xs leading-relaxed text-ink-3">
                 Advice and risk in this demo are produced by a deterministic rule engine over the same property model the
                 production models are trained on. Model versions are shown alongside every version of the output.
@@ -394,11 +409,48 @@ export function AccountRoute() {
         open={signOutOpen}
         onOpenChange={setSignOutOpen}
         title="Sign out of Farmo?"
-        description="Your projects stay in this browser. You can sign back in with the same email and the demo password."
+        description="Your projects stay in this browser. You can sign back in with the same email and password."
         confirmLabel="Sign out"
         onConfirm={() => {
           setSignOutOpen(false)
           void signOut().then(() => navigate('/login'))
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deletingAccount)}
+        onOpenChange={(open) => !open && setDeletingAccount(null)}
+        title={deletingAccount?.id === user.id ? 'Delete your account?' : `Remove ${deletingAccount?.name ?? 'this account'}?`}
+        description={
+          deletingAccount?.id === user.id
+            ? 'This permanently removes your account, the projects you own, and their farms, plants and history. You will be signed out.'
+            : 'This removes the account and any projects it owns, with their farms, plants and history. This cannot be undone.'
+        }
+        confirmLabel="Delete account"
+        tone="danger"
+        typeToConfirm="delete"
+        loading={deleteBusy}
+        onConfirm={() => {
+          if (!deletingAccount) return
+          const target = deletingAccount
+          const isSelf = target.id === user.id
+          setDeleteBusy(true)
+          void deleteAccount(target.id)
+            .then(() => {
+              bumpDataVersion()
+              setDeletingAccount(null)
+              if (isSelf) {
+                toast({ tone: 'info', title: 'Account deleted', body: 'You have been signed out.' })
+                navigate('/login')
+              } else {
+                toast({ tone: 'info', title: `${target.name} removed` })
+                projects.reload()
+              }
+            })
+            .catch((error: unknown) =>
+              toast({ tone: 'danger', title: 'Could not delete the account', body: error instanceof Error ? error.message : 'Unknown error' }),
+            )
+            .finally(() => setDeleteBusy(false))
         }}
       />
     </div>

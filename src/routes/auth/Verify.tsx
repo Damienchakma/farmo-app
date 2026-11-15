@@ -5,6 +5,7 @@ import { Button, Segmented } from '@/components/ui/controls'
 import { InlineAlert } from '@/components/ui/feedback'
 import { OtpInput } from '@/components/ui/OtpInput'
 import { ApiError } from '@/mock/api'
+import { backendEnabled } from '@/lib/backend'
 import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
 import { AuthHeading, AuthLayout } from './AuthLayout'
@@ -25,8 +26,8 @@ export function VerifyRoute() {
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [resentAt, setResentAt] = useState<number | null>(state.code ? Date.now() : null)
-  const [cooldown, setCooldown] = useState(state.code ? 30 : 0)
+  const [resentAt, setResentAt] = useState<number | null>(state.code !== undefined ? Date.now() : null)
+  const [cooldown, setCooldown] = useState(state.code !== undefined ? 60 : 0)
   const shownCode = useRef<string | null>(state.code ?? null)
 
   // Cooldown timer for the resend link.
@@ -35,20 +36,6 @@ export function VerifyRoute() {
     const id = window.setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000)
     return () => window.clearInterval(id)
   }, [cooldown])
-
-  // The first code is already in hand from signup: show it once as a dev aid.
-  useEffect(() => {
-    if (state.code) {
-      toast({
-        tone: 'code',
-        title: 'Verification code',
-        body: `Six digits for ${email}. Shown here because there is no mail server in the demo.`,
-        code: state.code,
-        ttl: 20000,
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const submit = async (value: string) => {
     setError(null)
@@ -84,11 +71,11 @@ export function VerifyRoute() {
       const next = await requestOtp(email, channel)
       shownCode.current = next
       setResentAt(Date.now())
-      setCooldown(30)
+      setCooldown(60)
       toast({
         tone: 'code',
         title: channel === 'verify-email' ? 'New email code' : 'New SMS code',
-        body: `Sent to ${channel === 'verify-email' ? email : (user?.phone ?? 'your mobile number')}.`,
+        body: next ? 'Development code only — no message was sent.' : `Sent to ${channel === 'verify-email' ? email : user?.phone}.`,
         code: next,
         ttl: 20000,
       })
@@ -100,13 +87,13 @@ export function VerifyRoute() {
   const destination = channel === 'verify-email' ? email : (user?.phone ?? 'your mobile number')
 
   return (
-    <AuthLayout footer={<span>Codes expire after 24 hours. Nothing leaves this browser in the demo.</span>}>
+    <AuthLayout footer={<span>{backendEnabled ? 'Codes expire after 10 minutes. Never share your code.' : 'Codes expire after 24 hours. Nothing leaves this browser in the demo.'}</span>}>
       <AuthHeading
         title="Confirm it is you"
         description={
           <>
-            We sent a six-digit code to <span className="font-medium text-ink">{destination}</span>. Enter it below.
-            {channel === 'verify-phone' && ' Mobile verification also unlocks SMS outbreak alerts.'}
+            {resentAt ? (shownCode.current ? 'Use the development code shown for ' : 'Enter the code sent to ') : 'Request a verification code for '}
+            <span className="font-medium text-ink">{destination}</span>.
           </>
         }
       />
@@ -118,6 +105,9 @@ export function VerifyRoute() {
           setChannel(value)
           setCode('')
           setError(null)
+          setResentAt(null)
+          setCooldown(0)
+          shownCode.current = null
         }}
         options={[
           { value: 'verify-email', label: 'Email code' },
@@ -164,7 +154,7 @@ export function VerifyRoute() {
           </button>
         </div>
 
-        {resentAt && (
+        {resentAt && shownCode.current && (
           <p className="mt-4 text-xs text-ink-3">
             The most recent code is still shown in the notification at the bottom of the screen.
           </p>

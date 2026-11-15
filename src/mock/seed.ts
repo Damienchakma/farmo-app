@@ -34,9 +34,11 @@ export interface DbState {
   risk: RiskVersion[]
   apiKeys: ApiKey[]
   authChallenges: Array<{ id: string; email: string; code: string; purpose: 'verify-email' | 'verify-phone' | 'reset'; expiresAt: string; consumed: boolean }>
+  /** Per-account passwords. Seeded demo users share DEMO_PASSWORD; signups store their own. */
+  credentials: Record<string, string>
 }
 
-export const SEED_VERSION = 5
+export const SEED_VERSION = 6
 
 /* -------------------------------------------------------------------- users */
 
@@ -791,7 +793,7 @@ export function buildSeedState(now: Date = new Date()): DbState {
     version: SEED_VERSION,
     seededAt: now.toISOString(),
     sessionUserId: null,
-    users: USERS,
+    users: USERS.map((u) => ({ ...u })),
     projects,
     farms,
     plants,
@@ -802,5 +804,6 @@ export function buildSeedState(now: Date = new Date()): DbState {
     risk,
     apiKeys: buildApiKeys(now),
     authChallenges: [],
+    credentials: Object.fromEntries(USERS.map((u) => [u.id, DEMO_PASSWORD])),
   }
 }

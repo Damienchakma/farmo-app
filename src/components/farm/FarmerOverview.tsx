@@ -6,7 +6,9 @@ import { EmptyState, InlineAlert } from '@/components/ui/feedback'
 import { Panel, PanelBody, PanelHead } from '@/components/ui/surfaces'
 import { PlotIllustration } from '@/components/brand/brand'
 import { formatNumber } from '@/lib/format'
+import { canEditFarm } from '@/lib/permissions'
 import { useFarm } from '@/store/farm'
+import { useSession } from '@/store/session'
 
 /** Shown wherever advice is presented in farmer mode. */
 export function HumanJudgmentNote({ className }: { className?: string }) {
@@ -37,6 +39,8 @@ export function FarmerOverview({ onAddPlant }: { onAddPlant: () => void }) {
   const { farm, analysis } = bundle
   const { conditions } = analysis
   const navigate = useNavigate()
+  const user = useSession((s) => s.user)
+  const canEdit = canEditFarm(bundle, user)
 
   const riskItems = analysis.risk?.items ?? []
   const actions: Array<{ title: string; detail: string }> = riskItems.slice(0, 3).map((item) => ({
@@ -131,9 +135,11 @@ export function FarmerOverview({ onAddPlant }: { onAddPlant: () => void }) {
           <PanelHead
             title="Your crops"
             actions={
-              <Button size="sm" variant="quiet" icon={<Plus />} onClick={onAddPlant}>
-                Add plant
-              </Button>
+              canEdit ? (
+                <Button size="sm" variant="quiet" icon={<Plus />} onClick={onAddPlant}>
+                  Add plant
+                </Button>
+              ) : undefined
             }
             display
           />
@@ -144,9 +150,11 @@ export function FarmerOverview({ onAddPlant }: { onAddPlant: () => void }) {
               title="No crops recorded yet"
               description="Add your first crop and Farmo will tell you what it needs each week."
               actions={
-                <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
-                  Add a plant
-                </Button>
+                canEdit ? (
+                  <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
+                    Add a plant
+                  </Button>
+                ) : undefined
               }
             />
           ) : (

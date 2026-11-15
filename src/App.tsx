@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from '@/components/app/AppShell'
+import { Toaster } from '@/components/ui/feedback'
 import { ErrorBoundary } from '@/components/app/ErrorBoundary'
 import { RequireAuth } from '@/components/app/RequireAuth'
 import { AccountRoute } from '@/routes/Account'
@@ -32,6 +33,7 @@ export function App() {
   }, [location.pathname])
 
   return (
+    <>
     <Routes>
       {/* Public Landing Page */}
       <Route path="/" element={<LandingRoute />} />
@@ -95,5 +97,7 @@ export function App() {
 
       <Route path="*" element={<NotFoundRoute />} />
     </Routes>
+    <Toaster />
+    </>
   )
 }
