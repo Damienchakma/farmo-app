@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
 import { api } from '@/mock/api'
+import { isGuestDemo, setGuestDemo } from '@/lib/guest'
 import type { User } from '@/mock/types'
 
 interface SessionState {
@@ -62,6 +63,10 @@ export const useSession = create<SessionState>((set) => ({
   },
 
   signOut: async () => {
+    if (isGuestDemo) {
+      setGuestDemo(false)
+      return
+    }
     await api.signOut()
     set({ user: null })
   },
@@ -75,6 +80,10 @@ export const useSession = create<SessionState>((set) => ({
   deleteAccount: async (userId) => {
     await api.deleteAccount(userId)
     const [user, users] = await Promise.all([api.currentUser(), api.listUsers()])
+    if (isGuestDemo && !user) {
+      setGuestDemo(false)
+      return
+    }
     set({ user, users })
   },
 

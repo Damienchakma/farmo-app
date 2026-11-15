@@ -35,6 +35,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/overlays'
 import { useAsync } from '@/lib/hooks'
+import { isGuestDemo, setGuestDemo } from '@/lib/guest'
 import { api, latencyRange, resetDemoData } from '@/mock/api'
 import { useFarm } from '@/store/farm'
 import { useSession } from '@/store/session'
@@ -55,7 +56,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Link to="/projects" onClick={onNavigate} aria-label="Farmo home">
           <Wordmark size={26} />
         </Link>
-        <span className="stamp stamp-plain text-[10px]">demo</span>
+        <span className="stamp stamp-plain text-[10px]">{isGuestDemo ? 'guest demo' : 'demo'}</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2.5 py-3" aria-label="Main">
@@ -368,6 +369,14 @@ export function AppShell() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar onOpenNav={() => setNavOpen(true)} />
+          {isGuestDemo && (
+            <section aria-label="Guest demo" className="flex flex-wrap items-center justify-between gap-2 border-b border-marigold-100 bg-marigold-50 px-4 py-2.5 text-xs text-soil-800 sm:px-6 lg:px-8">
+              <p><strong>Guest demo.</strong> Sample farms only. Changes stay in this tab and are cleared when you exit.</p>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setGuestDemo(false)}>
+                Exit guest demo
+              </button>
+            </section>
+          )}
           {recalcActive && (
             <div className="h-[2px] w-full overflow-hidden bg-marigold-100">
               <span className="block h-full w-1/3 animate-[farmo-slide_1.1s_ease-in-out_infinite] bg-marigold-500" />

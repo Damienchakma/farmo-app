@@ -281,7 +281,7 @@ function ProjectRow({
   const canConfigure = row.project.ownerId === user?.id && mode === 'researcher'
   return (
     <article className="panel">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.35fr)_minmax(0,0.9fr)]">
+      <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.35fr)_minmax(0,0.9fr)]">
         {/* Identity column */}
         <div className="border-b border-line p-4 sm:p-5 lg:border-b-0 lg:border-r">
           <div className="flex items-start justify-between gap-3">

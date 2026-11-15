@@ -1,7 +1,8 @@
 import { Beaker, Check, ExternalLink, RotateCcw, Sparkles, UserCog } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from '@/components/ui/overlays'
-import { latencyRange } from '@/mock/api'
+import { isGuestDemo } from '@/lib/guest'
+import { latencyRange, resetDemoData } from '@/mock/api'
 import { useFarm } from '@/store/farm'
 import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
@@ -56,7 +57,7 @@ export function DevMenu() {
         <DropdownLabel>Mock layer</DropdownLabel>
         <div className="px-2.5 pb-1.5 text-[11px] leading-relaxed text-ink-3">
           <p>
-            Latency {latencyRange()[0]}–{latencyRange()[1]} ms per call · state in localStorage
+            Latency {latencyRange()[0]}–{latencyRange()[1]} ms per call · {isGuestDemo ? 'temporary guest data in this tab' : 'state in localStorage'}
           </p>
           <p className="mt-0.5">Advice and risk recalculate 1.4 s after a property edit.</p>
         </div>
@@ -77,7 +78,7 @@ export function DevMenu() {
           icon={<RotateCcw />}
           onSelect={() => {
             resetRecalc()
-            localStorage.removeItem('farmo.demo.state.v3')
+            resetDemoData()
             window.location.assign('/projects')
           }}
         >

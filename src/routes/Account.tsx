@@ -11,6 +11,7 @@ import { useAsync } from '@/lib/hooks'
 import { formatDate } from '@/lib/format'
 import { api } from '@/mock/api'
 import { backendEnabled } from '@/lib/backend'
+import { isGuestDemo } from '@/lib/guest'
 import type { OAuthProvider, User } from '@/mock/types'
 import { useSession } from '@/store/session'
 import { bumpDataVersion, toast, useUi } from '@/store/ui'
@@ -225,7 +226,7 @@ export function AccountRoute() {
             <PanelHead title="Session and data" display />
             <PanelBody className="space-y-4">
               <p className="text-sm leading-relaxed text-ink-2">
-                {backendEnabled ? 'Your records are saved on the server. Signing out keeps them; deleting your account permanently removes the projects and farms you own.' : 'Demo records stay in this browser. Signing out keeps them; resetting restores the seeded projects, farms and history.'}
+                {isGuestDemo ? 'These sample records are temporary and belong to this tab. Signing out clears the guest demo without changing your real account or saved records.' : backendEnabled ? 'Your records are saved on the server. Signing out keeps them; deleting your account permanently removes the projects and farms you own.' : 'Demo records stay in this browser. Signing out keeps them; resetting restores the seeded projects, farms and history.'}
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" icon={<LogOut />} onClick={() => setSignOutOpen(true)}>
@@ -409,7 +410,7 @@ export function AccountRoute() {
         open={signOutOpen}
         onOpenChange={setSignOutOpen}
         title="Sign out of Farmo?"
-        description="Your projects stay in this browser. You can sign back in with the same email and password."
+        description={isGuestDemo ? 'This clears your temporary guest changes. Your real account and saved records will not be changed.' : 'Your saved projects are kept. You can sign back in with the same email and password.'}
         confirmLabel="Sign out"
         onConfirm={() => {
           setSignOutOpen(false)

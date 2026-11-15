@@ -1,14 +1,15 @@
 import { create } from 'zustand'
+import { GUEST_STORAGE_PREFIX, isGuestDemo } from '@/lib/guest'
 
 export type ToastTone = 'info' | 'success' | 'warning' | 'danger' | 'code'
 
 export type ExperienceMode = 'farmer' | 'researcher'
 
-const MODE_KEY = 'farmo.mode'
+const MODE_KEY = isGuestDemo ? `${GUEST_STORAGE_PREFIX}mode` : 'farmo.mode'
 
 function readMode(): ExperienceMode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'farmer' ? 'farmer' : 'researcher'
+    return (isGuestDemo ? sessionStorage : localStorage).getItem(MODE_KEY) === 'farmer' ? 'farmer' : 'researcher'
   } catch {
     return 'researcher'
   }
@@ -85,7 +86,7 @@ export const useUi = create<UiState>((set, get) => ({
   mode: readMode(),
   setMode: (mode) => {
     try {
-      localStorage.setItem(MODE_KEY, mode)
+      (isGuestDemo ? sessionStorage : localStorage).setItem(MODE_KEY, mode)
     } catch {
       /* private mode: keep the choice for this session only */
     }

@@ -10,6 +10,7 @@ import { InlineAlert } from '@/components/ui/feedback'
 import { Divider } from '@/components/ui/surfaces'
 import { ApiError } from '@/mock/api'
 import { backendEnabled } from '@/lib/backend'
+import { setGuestDemo } from '@/lib/guest'
 import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
 import { AuthHeading, AuthLayout, DemoCredentials } from './AuthLayout'
@@ -111,6 +112,27 @@ export function LoginRoute() {
           Sign in
         </Button>
       </form>
+
+      <div className="mt-4">
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          disabled={isSubmitting}
+          onClick={() => {
+            try {
+              setGuestDemo(true)
+            } catch {
+              setFormError('Guest demo needs browser session storage. Allow site storage and try again.')
+            }
+          }}
+        >
+          Try demo as guest
+        </Button>
+        <p className="mt-2 text-center text-xs text-ink-3">
+          No account needed. Explore sample farms; changes stay in this tab.
+        </p>
+      </div>
 
       <Divider label="or continue with" className="my-6" />
 

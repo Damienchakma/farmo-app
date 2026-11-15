@@ -7,6 +7,7 @@
  * generation endpoints).
  */
 
+import { isGuestDemo } from '@/lib/guest'
 import { analyzeFarm, severityRank, type AnalyzeOptions } from '@/mock/engine'
 import { FIELD_LABELS, formatValue } from '@/mock/changes'
 import {
@@ -39,7 +40,7 @@ import type {
   User,
 } from '@/mock/types'
 
-export const backendEnabled = Boolean(import.meta.env.VITE_API_URL)
+export const backendEnabled = Boolean(import.meta.env.VITE_API_URL) && !isGuestDemo
 const BASE = `${String(import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')}/api/v1`
 
 export class ApiError extends Error {

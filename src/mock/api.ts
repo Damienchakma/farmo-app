@@ -23,10 +23,11 @@ import { toAcre } from './catalog/geography'
 import { TEAM_ROLE_BY_ID } from './catalog'
 import { FIELD_LABELS, formatValue } from './changes'
 import { ApiError, backendApi, backendEnabled } from '../lib/backend'
+import { GUEST_STORAGE_PREFIX, isGuestDemo } from '@/lib/guest'
 
 export { ApiError }
 
-const STORAGE_KEY = 'farmo.demo.state.v3'
+const STORAGE_KEY = isGuestDemo ? `${GUEST_STORAGE_PREFIX}state.v3` : 'farmo.demo.state.v3'
 
 /* ================================================================= storage */
 
@@ -34,14 +35,15 @@ let cache: DbState | null = null
 
 function readStorage(): DbState | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const storage = isGuestDemo ? sessionStorage : localStorage
+    const raw = storage.getItem(STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as DbState
     if (parsed.version === 5) {
       parsed.version = SEED_VERSION
       parsed.credentials = Object.fromEntries(USERS.map((user) => [user.id, DEMO_PASSWORD]))
       parsed.authChallenges = []
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+      storage.setItem(STORAGE_KEY, JSON.stringify(parsed))
     }
     if (parsed.version !== SEED_VERSION) return null
     return parsed
@@ -53,7 +55,7 @@ function readStorage(): DbState | null {
 function persist(state: DbState): void {
   cache = state
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    (isGuestDemo ? sessionStorage : localStorage).setItem(STORAGE_KEY, JSON.stringify(state))
   } catch {
     /* Quota or private-mode failures leave the in-memory state intact. */
   }
@@ -66,13 +68,12 @@ export function getState(): DbState {
     cache = stored
     return stored
   }
-  const seeded = buildSeedState(new Date())
-  persist(seeded)
-  return seeded
+  return resetDemoData()
 }
 
 export function resetDemoData(): DbState {
   const seeded = buildSeedState(new Date())
+  if (isGuestDemo) seeded.sessionUserId = seeded.users[0].id
   persist(seeded)
   return seeded
 }
