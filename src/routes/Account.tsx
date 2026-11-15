@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ProviderMark } from '@/components/brand/brand'
-import { Button, Field, Input } from '@/components/ui/controls'
+import { Button, Field, Input, Segmented } from '@/components/ui/controls'
 import { Stamp } from '@/components/ui/data'
 import { InlineAlert, Skeleton } from '@/components/ui/feedback'
 import { ConfirmDialog } from '@/components/ui/overlays'
@@ -12,12 +12,14 @@ import { formatDate } from '@/lib/format'
 import { api } from '@/mock/api'
 import type { OAuthProvider } from '@/mock/types'
 import { useSession } from '@/store/session'
-import { toast } from '@/store/ui'
+import { toast, useUi } from '@/store/ui'
 
 const PROVIDER_NAME: Record<OAuthProvider, string> = { google: 'Google', facebook: 'Facebook', yahoo: 'Yahoo' }
 
 export function AccountRoute() {
   const { user, users, updateProfile, signOut, switchUser, requestOtp, verifyOtp } = useSession()
+  const mode = useUi((s) => s.mode)
+  const setMode = useUi((s) => s.setMode)
   const navigate = useNavigate()
   const projects = useAsync(() => api.listProjects(), [])
   const [name, setName] = useState(user?.name ?? '')
@@ -245,6 +247,27 @@ export function AccountRoute() {
         </div>
 
         <div className="space-y-5">
+          <Panel>
+            <PanelHead title="Experience mode" meta="How farm pages present advice" display />
+            <PanelBody className="space-y-3">
+              <Segmented
+                value={mode}
+                onChange={setMode}
+                label="Experience mode"
+                size="md"
+                options={[
+                  { value: 'farmer', label: 'Farmer' },
+                  { value: 'researcher', label: 'Researcher' },
+                ]}
+              />
+              <p className="text-xs leading-relaxed text-ink-3">
+                {mode === 'farmer'
+                  ? 'Farmer mode shows plain-language actions, weather in words and your priorities first. Charts and team management stay out of the way.'
+                  : 'Researcher mode keeps the full detail: charts, risk tables, versions and team management on every farm.'}
+              </p>
+            </PanelBody>
+          </Panel>
+
           <Panel>
             <PanelHead title="Connected sign-in providers" display />
             <PanelBody className="space-y-2.5">

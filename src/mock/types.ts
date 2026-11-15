@@ -136,6 +136,14 @@ export interface Farm {
   waterSource: string
   establishedYear: number
   notes: string
+  /** Google-style coordinates so SMAP/GPM satellite data can pinpoint the farm. */
+  latitude?: number | null
+  longitude?: number | null
+  farmerPriority?: string
+  waterAvailability?: string
+  equipmentLimitation?: string
+  marketPreference?: string
+  humanJudgmentAcknowledged?: boolean
   createdAt: string
   updatedAt: string
 }

@@ -6,13 +6,14 @@ import { EmptyState, InlineAlert, Recency } from '@/components/ui/feedback'
 import { Dialog, Tip } from '@/components/ui/overlays'
 import { Divider, Panel, PanelBody, PanelHead, SectionHead } from '@/components/ui/surfaces'
 import { AdviceBlocks, Drivers } from '@/components/farm/blocks'
+import { HumanJudgmentNote } from '@/components/farm/FarmerOverview'
 import { UpdatedBecause } from '@/components/farm/UpdatedBecause'
 import { useCopyToClipboard } from '@/lib/hooks'
 import { formatDateTime, SEVERITY_LABELS } from '@/lib/format'
 import { cn } from '@/lib/cn'
 import type { AdviceSection, RiskCategory, RiskItem, Severity } from '@/mock/types'
 import { useFarm } from '@/store/farm'
-import { toast } from '@/store/ui'
+import { toast, useUi } from '@/store/ui'
 
 /* --------------------------------------------------------------- shared --- */
 
@@ -96,6 +97,7 @@ export function AdviceTab() {
   const bundle = useFarm((s) => s.bundle)
   const recalc = useFarm((s) => s.recalc)
   const regenerate = useFarm((s) => s.regenerate)
+  const mode = useUi((s) => s.mode)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   const { copied, copy } = useCopyToClipboard()
@@ -133,6 +135,7 @@ export function AdviceTab() {
   return (
     <div className="space-y-5">
       <UpdatedBecause drivers={recalc.finishedAt ? advice.drivers : []} />
+      {mode === 'farmer' && <HumanJudgmentNote />}
       <AnalysisHeader
         kind="advice"
         version={advice}

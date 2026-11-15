@@ -2,6 +2,18 @@ import { create } from 'zustand'
 
 export type ToastTone = 'info' | 'success' | 'warning' | 'danger' | 'code'
 
+export type ExperienceMode = 'farmer' | 'researcher'
+
+const MODE_KEY = 'farmo.mode'
+
+function readMode(): ExperienceMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'farmer' ? 'farmer' : 'researcher'
+  } catch {
+    return 'researcher'
+  }
+}
+
 export interface Toast {
   id: number
   tone: ToastTone
@@ -30,6 +42,10 @@ interface UiState {
 
   inboxOpen: boolean
   setInboxOpen: (open: boolean) => void
+
+  /** Farmer mode simplifies the farm view; researcher keeps the full detail. */
+  mode: ExperienceMode
+  setMode: (mode: ExperienceMode) => void
 }
 
 let toastId = 0
@@ -61,6 +77,16 @@ export const useUi = create<UiState>((set, get) => ({
 
   inboxOpen: false,
   setInboxOpen: (inboxOpen) => set({ inboxOpen }),
+
+  mode: readMode(),
+  setMode: (mode) => {
+    try {
+      localStorage.setItem(MODE_KEY, mode)
+    } catch {
+      /* private mode: keep the choice for this session only */
+    }
+    set({ mode })
+  },
 }))
 
 /** Convenience for non-React call sites. */

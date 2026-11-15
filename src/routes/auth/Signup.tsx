@@ -69,6 +69,12 @@ export function SignupRoute() {
         phone: values.phone,
         password: values.password,
       })
+      if (user.emailVerified) {
+        // The live backend verifies email immediately in dev mode: no code step.
+        toast({ tone: 'success', title: `Welcome, ${user.name.split(' ')[0]}`, body: 'Your account is ready.' })
+        navigate('/projects', { replace: true })
+        return
+      }
       toast({
         tone: 'code',
         title: 'Verification code sent',

@@ -20,6 +20,10 @@ import { buildSeedState, DEMO_PASSWORD, SEED_VERSION, type DbState } from './see
 import { analyzeFarm, severityRank } from './engine'
 import { addDays, isoDate, rngFor } from './util'
 import { toAcre } from './catalog/geography'
+import { FIELD_LABELS, formatValue } from './changes'
+import { ApiError, backendApi, backendEnabled } from '../lib/backend'
+
+export { ApiError }
 
 const STORAGE_KEY = 'farmo.demo.state.v3'
 
@@ -90,15 +94,6 @@ function delay(ms?: number): Promise<void> {
 /** Recalculation is heavier than a read, the way a model call would be. */
 const RECALC_LATENCY = 1400
 
-export class ApiError extends Error {
-  status: number
-  constructor(status: number, message: string) {
-    super(message)
-    this.status = status
-    this.name = 'ApiError'
-  }
-}
-
 /* ================================================================ helpers */
 
 function uid(prefix: string): Id {
@@ -164,57 +159,9 @@ function bundle(state: DbState, farmId: Id): FarmBundle {
   }
 }
 
-function formatValue(field: string, value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'number') {
-    if (field === 'soilPh') return value.toFixed(2)
-    if (field === 'soilMoisture') return `${value} %`
-    if (['nitrogen', 'phosphorus', 'potassium'].includes(field)) return `${value} kg/ha`
-    if (field === 'organicMatter') return `${value} %`
-    if (field === 'spacingCm') return `${value} cm`
-    if (field === 'seedRateKgPerAcre') return `${value} kg/acre`
-    return String(value)
-  }
-  if (field === 'area' && typeof value === 'object' && value) {
-    const area = value as { value: number; unit: string }
-    return `${area.value} ${area.unit}`
-  }
-  return String(value)
-}
-
-const FIELD_LABELS: Record<string, string> = {
-  variety: 'Variety',
-  plantedAt: 'Planting date',
-  area: 'Area',
-  soilPh: 'Soil pH',
-  soilMoisture: 'Soil moisture',
-  nitrogen: 'Available nitrogen',
-  phosphorus: 'Available phosphorus',
-  potassium: 'Available potassium',
-  organicMatter: 'Organic matter',
-  irrigationType: 'Irrigation type',
-  previousCropId: 'Previous crop',
-  spacingCm: 'Spacing',
-  seedRateKgPerAcre: 'Seed rate',
-  stageOverride: 'Growth stage',
-  notes: 'Notes',
-  name: 'Name',
-  district: 'District',
-  locality: 'Locality',
-  soilType: 'Soil type',
-  landType: 'Land type',
-  waterSource: 'Water source',
-  establishedYear: 'Established',
-  summary: 'Summary',
-  region: 'Region',
-  climateZone: 'Climate zone',
-  budgetUsd: 'Budget',
-  equipment: 'Equipment',
-}
-
 /* ================================================================ queries */
 
-export const api = {
+const mockApi = {
   /* --------------------------------------------------------------- auth */
   async login(email: string, password: string): Promise<User> {
     await delay()
@@ -1185,3 +1132,11 @@ function makeCode(email: string, purpose: string): string {
   const r = rngFor(email, purpose, isoDate(new Date()))
   return String(Math.floor(100000 + r() * 900000))
 }
+
+/* ================================================================ the api */
+
+/**
+ * Remote-first opt-in: with VITE_API_URL set, auth/projects/farms/plants go to
+ * the live backend while OTP, teams, notifications and demo reset stay mock.
+ */
+export const api: typeof mockApi = backendEnabled ? { ...mockApi, ...backendApi } : mockApi

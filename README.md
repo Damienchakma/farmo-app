@@ -30,3 +30,12 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Live backend (optional)
+
+By default the app runs fully self-contained on mock data. To connect the
+FastAPI/MongoDB backend, copy `.env.example` to `.env.local` and set
+`VITE_API_URL` (e.g. `http://localhost:8000`), then restart the dev server.
+Auth, projects, farms and plants then persist in MongoDB; advice and risk are
+still computed locally by the deterministic engine. Delete `.env.local` to
+return to the demo. Never commit `.env.local`.

@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Check,
   Droplets,
+  MapPin,
   MoreHorizontal,
   Package,
   Pencil,
@@ -47,7 +48,7 @@ import {
 } from '@/mock/catalog'
 import type { Accommodation, EquipmentId, Farm, Project } from '@/mock/types'
 import { USERS } from '@/mock/seed'
-import { toast } from '@/store/ui'
+import { toast, useUi } from '@/store/ui'
 
 const farmSchema = z.object({
   name: z.string().min(3, 'Give the block a name at least 3 characters long.').max(60, 'Keep it under 60 characters.'),
@@ -61,6 +62,8 @@ const farmSchema = z.object({
   waterSource: z.string().min(2, 'Describe where irrigation water comes from.'),
   establishedYear: z.coerce.number().min(1900, 'That year is too early.').max(new Date().getFullYear(), 'The year cannot be in the future.'),
   notes: z.string().max(400, 'That is longer than the field allows.').optional().default(''),
+  latitude: z.union([z.literal(''), z.coerce.number().min(-90, 'Latitude is between -90 and 90.').max(90, 'Latitude is between -90 and 90.')]),
+  longitude: z.union([z.literal(''), z.coerce.number().min(-180, 'Longitude is between -180 and 180.').max(180, 'Longitude is between -180 and 180.')]),
 })
 
 type FarmValues = z.input<typeof farmSchema>
@@ -524,11 +527,13 @@ function AddFarmDialog({
   onCreated: (farm: Farm) => void
 }) {
   const [formError, setFormError] = useState<string | null>(null)
+  const mode = useUi((s) => s.mode)
   const {
     register,
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FarmValues>({
     resolver: zodResolver(farmSchema),
@@ -544,12 +549,32 @@ function AddFarmDialog({
       waterSource: '',
       establishedYear: new Date().getFullYear(),
       notes: '',
+      latitude: '',
+      longitude: '',
     },
   })
 
+  // Farmer mode skips the district picker: the project's climate zone places the farm.
+  const derivedDistrict = DISTRICTS.find((d) => d.zone === project?.climateZone)?.name ?? 'Cedar Valley'
   const districtName = watch('district')
-  const district = districtByName(districtName ?? 'Cedar Valley')
+  const district = districtByName(mode === 'farmer' ? derivedDistrict : (districtName ?? 'Cedar Valley'))
   const soilType = watch('soilType')
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ tone: 'warning', title: 'Location unavailable', body: 'This browser does not expose geolocation. Enter the coordinates manually.' })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setValue('latitude', Number(position.coords.latitude.toFixed(6)), { shouldDirty: true })
+        setValue('longitude', Number(position.coords.longitude.toFixed(6)), { shouldDirty: true })
+        toast({ tone: 'success', title: 'Location filled in', body: 'Check the pin is on your land, then save.' })
+      },
+      () => toast({ tone: 'warning', title: 'Could not read your location', body: 'Allow location access and try again, or enter the coordinates manually.' }),
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   const submit = async (values: FarmValues) => {
     if (!project) return
@@ -558,7 +583,7 @@ function AddFarmDialog({
       const farm = await api.createFarm({
         projectId: project.id,
         name: values.name,
-        district: values.district,
+        district: mode === 'farmer' ? derivedDistrict : values.district,
         locality: values.locality,
         area: { value: Number(values.areaValue), unit: values.areaUnit },
         soilType: values.soilType as Farm['soilType'],
@@ -567,6 +592,8 @@ function AddFarmDialog({
         waterSource: values.waterSource,
         establishedYear: Number(values.establishedYear),
         notes: values.notes ?? '',
+        latitude: values.latitude === '' ? null : Number(values.latitude),
+        longitude: values.longitude === '' ? null : Number(values.longitude),
       })
       reset()
       onOpenChange(false)
@@ -606,17 +633,19 @@ function AddFarmDialog({
           </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="District" error={errors.district?.message}>
-            {({ id, ...aria }) => (
-              <Select
-                id={id}
-                options={DISTRICTS.map((d) => ({ value: d.name, label: `${d.name} (${d.zone})` }))}
-                {...aria}
-                {...register('district')}
-              />
-            )}
-          </Field>
+        <div className={cn('grid gap-4', mode === 'researcher' ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+          {mode === 'researcher' && (
+            <Field label="District" error={errors.district?.message}>
+              {({ id, ...aria }) => (
+                <Select
+                  id={id}
+                  options={DISTRICTS.map((d) => ({ value: d.name, label: `${d.name} (${d.zone})` }))}
+                  {...aria}
+                  {...register('district')}
+                />
+              )}
+            </Field>
+          )}
           <Field label="Area" error={errors.areaValue?.message}>
             {({ id, ...aria }) => (
               <Input id={id} type="number" step="0.1" min="0" {...aria} {...register('areaValue')} />
@@ -684,6 +713,26 @@ function AddFarmDialog({
           <Field label="Notes" error={errors.notes?.message} hint="Anything the field team should know." className="sm:col-span-1">
             {({ id, ...aria }) => <Textarea id={id} rows={2} placeholder="East corner stays wet after heavy rain." {...aria} {...register('notes')} />}
           </Field>
+        </div>
+
+        <div className="space-y-2 border-t border-line pt-4">
+          <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
+            <Field label="Latitude" error={errors.latitude?.message} hint="Decimal degrees, e.g. 23.8103">
+              {({ id, ...aria }) => <Input id={id} type="number" step="any" placeholder="23.8103" {...aria} {...register('latitude')} />}
+            </Field>
+            <Field label="Longitude" error={errors.longitude?.message} hint="Decimal degrees, e.g. 90.4125">
+              {({ id, ...aria }) => <Input id={id} type="number" step="any" placeholder="90.4125" {...aria} {...register('longitude')} />}
+            </Field>
+            <div className="flex items-end">
+              <Button type="button" variant="outline" icon={<MapPin />} onClick={useMyLocation}>
+                Use my location
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs leading-relaxed text-ink-3">
+            Optional, but a Google Maps-style pin lets SMAP soil-moisture and GPM rainfall satellite data pinpoint this
+            farm. You can add it later in the farm's Settings.
+          </p>
         </div>
       </form>
     </Dialog>

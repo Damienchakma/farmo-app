@@ -108,6 +108,18 @@ function adviceSource(bundle: FarmBundle): string {
   return `Advice ${bundle.analysis.advice.modelVersion}`
 }
 
+/** The farmer's own constraints, quoted straight from the farm record. */
+function priorityLine(bundle: FarmBundle): string | null {
+  const { farm } = bundle
+  const parts = [
+    farm.farmerPriority && `priority: ${farm.farmerPriority}`,
+    farm.waterAvailability && `water: ${farm.waterAvailability}`,
+    farm.equipmentLimitation && `equipment: ${farm.equipmentLimitation}`,
+    farm.marketPreference && `market: ${farm.marketPreference}`,
+  ].filter(Boolean)
+  return parts.length ? `**Your priorities:** ${parts.join('; ')}.` : null
+}
+
 function riskSource(bundle: FarmBundle): string {
   return `Risk ${bundle.analysis.risk.modelVersion}`
 }
@@ -170,6 +182,9 @@ export function buildBrief(bundle: FarmBundle): AssistantReply {
 
   const timing = section(bundle, 'timing')
   if (timing?.gist) bullets.push(`**Next:** ${timing.gist.replace(/^Next operation: /, '')}`)
+
+  const priorityNote = priorityLine(bundle)
+  if (priorityNote) bullets.push(priorityNote)
 
   return {
     text: `${farm.name} is ${formatArea(farm.area)} of ${titleCase(farm.soilType)} in ${farm.locality}, ${farm.district}. ${plantSentence}`,
@@ -714,6 +729,9 @@ function priorities(bundle: FarmBundle, question: string): AssistantReply {
   if (timing?.gist) {
     bullets.push(`**Calendar:** ${sentence(timing.gist.replace(/^Next operation: /, ''))}`)
   }
+
+  const priorityNote = priorityLine(bundle)
+  if (priorityNote) bullets.push(priorityNote)
 
   return withWhy(
     {

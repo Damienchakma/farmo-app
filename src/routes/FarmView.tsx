@@ -27,6 +27,7 @@ import { ConfirmDialog } from '@/components/ui/overlays'
 import { Divider, Panel, PanelBody, PanelHead, SectionHead } from '@/components/ui/surfaces'
 import { AdviceTab, RiskTab } from '@/components/farm/AnalysisTabs'
 import { AssistantTab } from '@/components/farm/AssistantTab'
+import { FarmerOverview, HumanJudgmentNote } from '@/components/farm/FarmerOverview'
 import { PlantsTab } from '@/components/farm/PlantsTab'
 import { TeamsTab } from '@/components/farm/TeamsTab'
 import { VisualizationsTab } from '@/components/farm/VisualizationsTab'
@@ -36,7 +37,7 @@ import { api, ApiError } from '@/mock/api'
 import { AREA_UNITS, CLIMATE_ZONES, DISTRICTS, IRRIGATION_TYPES, SOIL_TYPES, districtByName } from '@/mock/catalog'
 import type { Farm } from '@/mock/types'
 import { useFarm } from '@/store/farm'
-import { toast } from '@/store/ui'
+import { toast, useUi } from '@/store/ui'
 
 export interface TabDef {
   id: string
@@ -122,13 +123,18 @@ export function FarmViewRoute() {
   const loadFarm = useFarm((s) => s.loadFarm)
   const recalc = useFarm((s) => s.recalc)
   const regenerate = useFarm((s) => s.regenerate)
+  const mode = useUi((s) => s.mode)
   const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
     if (farmId) void loadFarm(farmId)
   }, [farmId, loadFarm])
 
-  const activeTab = TABS.some((t) => t.id === tab) ? tab : 'overview'
+  const visibleTabs = useMemo(
+    () => (mode === 'farmer' ? TABS.filter((t) => t.id !== 'visualizations' && t.id !== 'teams') : TABS),
+    [mode],
+  )
+  const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : 'overview'
 
   if (error) {
     return (
@@ -151,7 +157,7 @@ export function FarmViewRoute() {
 
   const tabs = useMemo<TabDef[]>(
     () =>
-      TABS.map((t) => {
+      visibleTabs.map((t) => {
         if (!bundle) return t
         if (t.id === 'plants') return { ...t, count: bundle.plants.length }
         if (t.id === 'risk') return { ...t, count: bundle.analysis.risk?.items.length }
@@ -159,7 +165,7 @@ export function FarmViewRoute() {
         if (t.id === 'teams') return { ...t, count: bundle.memberships.filter((m) => m.status === 'accepted').length }
         return t
       }),
-    [bundle],
+    [bundle, visibleTabs],
   )
 
   return (
@@ -194,7 +200,8 @@ export function FarmViewRoute() {
 
             <div className={cn(recalc.active && 'mt-5')} key={activeTab}>
               <div className="fade-up">
-                {activeTab === 'overview' && <OverviewTab onAddPlant={() => setAddOpen(true)} />}
+                {activeTab === 'overview' &&
+                  (mode === 'farmer' ? <FarmerOverview onAddPlant={() => setAddOpen(true)} /> : <OverviewTab onAddPlant={() => setAddOpen(true)} />)}
                 {activeTab === 'assistant' && <AssistantTab />}
                 {activeTab === 'plants' && <PlantsTab />}
                 {activeTab === 'advice' && <AdviceTab />}
@@ -597,6 +604,12 @@ const farmSchema = z.object({
   waterSource: z.string().min(2, 'Describe where irrigation water comes from.'),
   establishedYear: z.coerce.number().min(1900).max(new Date().getFullYear()),
   notes: z.string().max(400).optional().default(''),
+  latitude: z.union([z.literal(''), z.coerce.number().min(-90, 'Latitude is between -90 and 90.').max(90, 'Latitude is between -90 and 90.')]),
+  longitude: z.union([z.literal(''), z.coerce.number().min(-180, 'Longitude is between -180 and 180.').max(180, 'Longitude is between -180 and 180.')]),
+  farmerPriority: z.string().max(200, 'Keep it under 200 characters.').optional().default(''),
+  waterAvailability: z.string().max(200, 'Keep it under 200 characters.').optional().default(''),
+  equipmentLimitation: z.string().max(200, 'Keep it under 200 characters.').optional().default(''),
+  marketPreference: z.string().max(200, 'Keep it under 200 characters.').optional().default(''),
 })
 
 type FarmForm = z.input<typeof farmSchema>
@@ -605,6 +618,7 @@ type FarmPayload = z.output<typeof farmSchema>
 function SettingsTab() {
   const bundle = useFarm((s) => s.bundle)!
   const patchFarm = useFarm((s) => s.patchFarm)
+  const mode = useUi((s) => s.mode)
   const navigate = useNavigate()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -614,6 +628,7 @@ function SettingsTab() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<FarmForm, unknown, FarmPayload>({
     resolver: zodResolver(farmSchema),
@@ -629,8 +644,30 @@ function SettingsTab() {
       waterSource: farm.waterSource,
       establishedYear: farm.establishedYear,
       notes: farm.notes,
+      latitude: farm.latitude ?? '',
+      longitude: farm.longitude ?? '',
+      farmerPriority: farm.farmerPriority ?? '',
+      waterAvailability: farm.waterAvailability ?? '',
+      equipmentLimitation: farm.equipmentLimitation ?? '',
+      marketPreference: farm.marketPreference ?? '',
     },
   })
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ tone: 'warning', title: 'Location unavailable', body: 'This browser does not expose geolocation. Enter the coordinates manually.' })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setValue('latitude', Number(position.coords.latitude.toFixed(6)), { shouldDirty: true })
+        setValue('longitude', Number(position.coords.longitude.toFixed(6)), { shouldDirty: true })
+        toast({ tone: 'success', title: 'Location filled in', body: 'Check the pin is on your land, then save.' })
+      },
+      () => toast({ tone: 'warning', title: 'Could not read your location', body: 'Allow location access and try again, or enter the coordinates manually.' }),
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   const submit = async (values: FarmPayload) => {
     setFormError(null)
@@ -646,6 +683,14 @@ function SettingsTab() {
     if (values.waterSource !== farm.waterSource) patch.waterSource = values.waterSource
     if (values.establishedYear !== farm.establishedYear) patch.establishedYear = values.establishedYear
     if ((values.notes ?? '') !== farm.notes) patch.notes = values.notes ?? ''
+    const latitude = values.latitude === '' ? null : values.latitude
+    const longitude = values.longitude === '' ? null : values.longitude
+    if (latitude !== (farm.latitude ?? null)) patch.latitude = latitude
+    if (longitude !== (farm.longitude ?? null)) patch.longitude = longitude
+    if ((values.farmerPriority ?? '') !== (farm.farmerPriority ?? '')) patch.farmerPriority = values.farmerPriority ?? ''
+    if ((values.waterAvailability ?? '') !== (farm.waterAvailability ?? '')) patch.waterAvailability = values.waterAvailability ?? ''
+    if ((values.equipmentLimitation ?? '') !== (farm.equipmentLimitation ?? '')) patch.equipmentLimitation = values.equipmentLimitation ?? ''
+    if ((values.marketPreference ?? '') !== (farm.marketPreference ?? '')) patch.marketPreference = values.marketPreference ?? ''
 
     if (!Object.keys(patch).length) {
       toast({ tone: 'info', title: 'Nothing changed', body: 'Edit at least one property to trigger a recalculation.' })
@@ -683,12 +728,14 @@ function SettingsTab() {
               </Field>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="District" error={errors.district?.message}>
-                {({ id, ...aria }) => (
-                  <Select id={id} options={DISTRICTS.map((d) => ({ value: d.name, label: `${d.name} (${d.zone})` }))} {...aria} {...register('district')} />
-                )}
-              </Field>
+            <div className={cn('grid gap-4', mode === 'researcher' ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+              {mode === 'researcher' && (
+                <Field label="District" error={errors.district?.message}>
+                  {({ id, ...aria }) => (
+                    <Select id={id} options={DISTRICTS.map((d) => ({ value: d.name, label: `${d.name} (${d.zone})` }))} {...aria} {...register('district')} />
+                  )}
+                </Field>
+              )}
               <Field label="Area" error={errors.areaValue?.message}>
                 {({ id, ...aria }) => <Input id={id} type="number" step="0.1" {...aria} {...register('areaValue')} />}
               </Field>
@@ -739,6 +786,43 @@ function SettingsTab() {
               <Field label="Notes" error={errors.notes?.message}>
                 {({ id, ...aria }) => <Textarea id={id} rows={2} {...aria} {...register('notes')} />}
               </Field>
+            </div>
+
+            <div className="space-y-4 border-t border-line pt-4">
+              <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto]">
+                <Field label="Latitude" error={errors.latitude?.message} hint="Decimal degrees, e.g. 23.8103">
+                  {({ id, ...aria }) => <Input id={id} type="number" step="any" placeholder="23.8103" {...aria} {...register('latitude')} />}
+                </Field>
+                <Field label="Longitude" error={errors.longitude?.message} hint="Decimal degrees, e.g. 90.4125">
+                  {({ id, ...aria }) => <Input id={id} type="number" step="any" placeholder="90.4125" {...aria} {...register('longitude')} />}
+                </Field>
+                <div className="flex items-end">
+                  <Button type="button" variant="outline" icon={<MapPin />} onClick={useMyLocation}>
+                    Use my location
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs leading-relaxed text-ink-3">
+                Coordinates work like a Google Maps pin: they let SMAP soil-moisture and GPM rainfall satellite data
+                pinpoint this farm instead of guessing from the district.
+              </p>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Your priority" error={errors.farmerPriority?.message} hint="What matters most this season, in your words.">
+                  {({ id, ...aria }) => <Input id={id} placeholder="e.g. Save irrigation water" {...aria} {...register('farmerPriority')} />}
+                </Field>
+                <Field label="Water availability" error={errors.waterAvailability?.message} hint="How much water you can actually call on.">
+                  {({ id, ...aria }) => <Input id={id} placeholder="e.g. One shallow tubewell, shared" {...aria} {...register('waterAvailability')} />}
+                </Field>
+                <Field label="Equipment limits" error={errors.equipmentLimitation?.message} hint="Machinery you have — or do not have.">
+                  {({ id, ...aria }) => <Input id={id} placeholder="e.g. Knapsack sprayer only" {...aria} {...register('equipmentLimitation')} />}
+                </Field>
+                <Field label="Market preference" error={errors.marketPreference?.message} hint="Who you grow for and what they pay for.">
+                  {({ id, ...aria }) => <Input id={id} placeholder="e.g. Local mill, prefers hard grain" {...aria} {...register('marketPreference')} />}
+                </Field>
+              </div>
+
+              <HumanJudgmentNote />
             </div>
 
             <div className="flex items-center gap-3 border-t border-line pt-4">
