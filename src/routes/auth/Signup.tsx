@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Button, CheckboxField, Field, Input } from '@/components/ui/controls'
 import { InlineAlert } from '@/components/ui/feedback'
 import { ApiError } from '@/mock/api'
+import { backendEnabled } from '@/lib/backend'
 import { useSession } from '@/store/session'
 import { toast } from '@/store/ui'
 import { AuthHeading, AuthLayout } from './AuthLayout'
@@ -70,7 +71,6 @@ export function SignupRoute() {
         password: values.password,
       })
       if (user.emailVerified) {
-        // The live backend verifies email immediately in dev mode: no code step.
         toast({ tone: 'success', title: `Welcome, ${user.name.split(' ')[0]}`, body: 'Your account is ready.' })
         navigate('/projects', { replace: true })
         return
@@ -78,7 +78,7 @@ export function SignupRoute() {
       toast({
         tone: 'code',
         title: 'Verification code sent',
-        body: `A six-digit code went to ${user.email}. In this demo it is shown here.`,
+        body: code ? 'Development code only — no email was sent.' : `A six-digit code was sent to ${user.email}. Check spam too.`,
         code,
         ttl: 20000,
       })
@@ -90,7 +90,7 @@ export function SignupRoute() {
 
   return (
     <AuthLayout
-      footer={<span>Your account exists only in this browser. Nothing is uploaded anywhere.</span>}
+      footer={<span>{backendEnabled ? 'Your account and farm records are saved on the Farmo server.' : 'Your account exists only in this browser. Nothing is uploaded anywhere.'}</span>}
     >
       <AuthHeading
         title="Create your Farmo account"

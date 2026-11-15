@@ -14,7 +14,7 @@
   UserCog,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Wordmark } from '@/components/brand/brand'
 import { Stamp } from '@/components/ui/data'
@@ -34,8 +34,8 @@ import {
   PopoverTrigger,
   TooltipProvider,
 } from '@/components/ui/overlays'
-import { Toaster } from '@/components/ui/feedback'
 import { useAsync } from '@/lib/hooks'
+import { isGuestDemo, setGuestDemo } from '@/lib/guest'
 import { api, latencyRange, resetDemoData } from '@/mock/api'
 import { useFarm } from '@/store/farm'
 import { useSession } from '@/store/session'
@@ -45,7 +45,9 @@ import { useUi, toast } from '@/store/ui'
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, signOut } = useSession()
-  const projects = useAsync(() => api.listProjects(), [])
+  const dataVersion = useUi((s) => s.dataVersion)
+  const mode = useUi((s) => s.mode)
+  const projects = useAsync(() => api.listProjects(), [dataVersion, user?.id])
   const unread = useFarm((s) => s.notifications.filter((n) => !n.read).length)
 
   return (
@@ -54,7 +56,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Link to="/projects" onClick={onNavigate} aria-label="Farmo home">
           <Wordmark size={26} />
         </Link>
-        <span className="stamp stamp-plain text-[10px]">demo</span>
+        <span className="stamp stamp-plain text-[10px]">{isGuestDemo ? 'guest demo' : 'demo'}</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2.5 py-3" aria-label="Main">
@@ -62,10 +64,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <LayoutGrid aria-hidden />
           Projects
         </NavLink>
-        <NavLink to="/developers" className="nav-item" onClick={onNavigate}>
-          <Terminal aria-hidden />
-          Developer API
-        </NavLink>
+        {mode === 'researcher' && (
+          <NavLink to="/developers" className="nav-item" onClick={onNavigate}>
+            <Terminal aria-hidden />
+            Developer API
+          </NavLink>
+        )}
         <NavLink to="/account" className="nav-item" onClick={onNavigate}>
           <Settings aria-hidden />
           Account
@@ -81,11 +85,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             ))}
           </div>
         )}
-        {projects.data?.flatMap(({ project }) =>
-          project.farmIds.map((farmId) => (
-            <FarmNavItem key={farmId} farmId={farmId} projectName={project.name} onNavigate={onNavigate} />
-          )),
-        )}
+        {projects.data?.map(({ project, farms }) => (
+          <div key={project.id}>
+            <NavLink to={`/projects/${project.id}`} className="nav-item" onClick={onNavigate}>
+              <LayoutGrid aria-hidden />
+              <span className="truncate">{project.name}</span>
+            </NavLink>
+            {farms.map((farm) => (
+              <FarmNavItem key={farm.id} farmId={farm.id} farmName={farm.name} projectName={project.name} onNavigate={onNavigate} />
+            ))}
+          </div>
+        ))}
 
         <div className="mt-5 px-2 pb-1.5">
           <span className="eyebrow">Session</span>
@@ -120,28 +130,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function FarmNavItem({ farmId, projectName, onNavigate }: { farmId: string; projectName: string; onNavigate?: () => void }) {
-  const bundle = useFarm((s) => (s.bundle?.farm.id === farmId ? s.bundle : null))
-  const [name, setName] = useState<string | null>(bundle?.farm.name ?? null)
-
-  useEffect(() => {
-    if (bundle) {
-      setName(bundle.farm.name)
-      return
-    }
-    let cancelled = false
-    api.getFarmBundle(farmId).then((b) => {
-      if (!cancelled) setName(b.farm.name)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [bundle, farmId])
+function FarmNavItem({ farmId, farmName, projectName, onNavigate }: { farmId: string; farmName: string; projectName: string; onNavigate?: () => void }) {
+  const name = useFarm((s) => s.bundle?.farm.id === farmId ? s.bundle.farm.name : farmName)
 
   return (
     <NavLink to={`/farms/${farmId}/overview`} className="nav-item" onClick={onNavigate} title={projectName}>
       <Sprout aria-hidden />
-      <span className="truncate">{name ?? 'Loading…'}</span>
+      <span className="truncate">{name}</span>
     </NavLink>
   )
 }
@@ -182,6 +177,7 @@ function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const setPaletteOpen = useUi((s) => s.setPaletteOpen)
   const inboxOpen = useUi((s) => s.inboxOpen)
   const setInboxOpen = useUi((s) => s.setInboxOpen)
+  const mode = useUi((s) => s.mode)
   const notifications = useFarm((s) => s.notifications)
   const loadNotifications = useFarm((s) => s.loadNotifications)
   const navigate = useNavigate()
@@ -298,9 +294,11 @@ function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
           <DropdownItem icon={<Settings />} onSelect={() => navigate('/account')}>
             Account settings
           </DropdownItem>
-          <DropdownItem icon={<Terminal />} onSelect={() => navigate('/developers')}>
-            Developer API
-          </DropdownItem>
+          {mode === 'researcher' && (
+            <DropdownItem icon={<Terminal />} onSelect={() => navigate('/developers')}>
+              Developer API
+            </DropdownItem>
+          )}
           <DropdownSeparator />
           <DropdownItem
             icon={<LogOut />}
@@ -323,6 +321,7 @@ function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
 export function AppShell() {
   const navOpen = useUi((s) => s.navOpen)
   const setNavOpen = useUi((s) => s.setNavOpen)
+  const mode = useUi((s) => s.mode)
   const location = useLocation()
   const bundle = useFarm((s) => s.bundle)
   const recalcActive = useFarm((s) => s.recalc.active)
@@ -370,6 +369,14 @@ export function AppShell() {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar onOpenNav={() => setNavOpen(true)} />
+          {isGuestDemo && (
+            <section aria-label="Guest demo" className="flex flex-wrap items-center justify-between gap-2 border-b border-marigold-100 bg-marigold-50 px-4 py-2.5 text-xs text-soil-800 sm:px-6 lg:px-8">
+              <p><strong>Guest demo.</strong> Sample farms only. Changes stay in this tab and are cleared when you exit.</p>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setGuestDemo(false)}>
+                Exit guest demo
+              </button>
+            </section>
+          )}
           {recalcActive && (
             <div className="h-[2px] w-full overflow-hidden bg-marigold-100">
               <span className="block h-full w-1/3 animate-[farmo-slide_1.1s_ease-in-out_infinite] bg-marigold-500" />
@@ -381,10 +388,12 @@ export function AppShell() {
           <footer className="flex-none border-t border-line px-4 py-3 text-[11px] text-ink-3 sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>Farmo demo · advice and risk are generated by a deterministic mock engine</span>
-              <Link to="/developers" className="link inline-flex items-center gap-1">
-                <Code2 size={11} aria-hidden />
-                API reference
-              </Link>
+              {mode === 'researcher' && (
+                <Link to="/developers" className="link inline-flex items-center gap-1">
+                  <Code2 size={11} aria-hidden />
+                  API reference
+                </Link>
+              )}
               <Link to="/account" className="link inline-flex items-center gap-1">
                 <MessageSquarePlus size={11} aria-hidden />
                 Send feedback
@@ -395,7 +404,6 @@ export function AppShell() {
         </div>
       </div>
       <CommandPalette />
-      <Toaster />
     </TooltipProvider>
   )
 }

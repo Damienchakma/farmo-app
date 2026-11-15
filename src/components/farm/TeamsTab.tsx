@@ -9,6 +9,7 @@ import { EmptyState, InlineAlert } from '@/components/ui/feedback'
 import { ConfirmDialog, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator, DropdownTrigger } from '@/components/ui/overlays'
 import { Panel, PanelBody, PanelHead } from '@/components/ui/surfaces'
 import { formatDate, relativeTime } from '@/lib/format'
+import { canManageTeam } from '@/lib/permissions'
 import { TEAM_ROLES, TEAM_ROLE_BY_ID } from '@/mock/catalog'
 import type { Membership, TeamRole } from '@/mock/types'
 import { useFarm } from '@/store/farm'
@@ -54,6 +55,7 @@ export function TeamsTab() {
   const memberships = bundle.memberships
   const myPending = memberships.filter((m) => m.status === 'pending' && m.email.toLowerCase() === user?.email.toLowerCase())
   const active = memberships.filter((m) => m.status === 'accepted')
+  const canManage = canManageTeam(bundle, user)
 
   return (
     <div className="space-y-5">
@@ -159,59 +161,63 @@ export function TeamsTab() {
                         <Td label="Responded">{member.respondedAt ? formatDate(member.respondedAt, 'dayMonth') : '—'}</Td>
                         <Td className="col-actions">
                           <span className="actions-inner">
-                            {member.status === 'pending' && (
-                              <Button
-                                size="sm"
-                                variant="quiet"
-                                icon={<RotateCcw />}
-                                aria-label={`Cancel the invitation to ${member.email}`}
-                                onClick={() => setRevoking(member)}
-                              >
-                                Cancel
-                              </Button>
-                            )}
-                            {member.status === 'accepted' && (
-                              <Dropdown>
-                                <DropdownTrigger asChild>
-                                  <button type="button" className="btn btn-sm btn-quiet btn-icon" aria-label={`Actions for ${member.email}`}>
-                                    <MoreHorizontal aria-hidden />
-                                  </button>
-                                </DropdownTrigger>
-                                <DropdownContent>
-                                  <DropdownLabel>Change role</DropdownLabel>
-                                  {TEAM_ROLES.map((role) => (
-                                    <DropdownItem
-                                      key={role.id}
-                                      icon={member.role === role.id ? <Check /> : undefined}
-                                      onSelect={() => {
-                                        if (member.role === role.id) return
-                                        void changeMemberRole(member.id, role.id).then(() =>
-                                          toast({ tone: 'success', title: 'Role updated', body: `${member.name ?? member.email} is now ${role.label}.` }),
-                                        )
-                                      }}
-                                    >
-                                      {role.label}
-                                    </DropdownItem>
-                                  ))}
-                                  <DropdownSeparator />
-                                  <DropdownItem icon={<UserMinus />} danger onSelect={() => setRevoking(member)}>
-                                    Revoke access
-                                  </DropdownItem>
-                                </DropdownContent>
-                              </Dropdown>
-                            )}
-                            {member.status === 'rejected' && (
-                              <Button
-                                size="sm"
-                                variant="quiet"
-                                icon={<MailPlus />}
-                                onClick={() => {
-                                  reset({ email: member.email, role: member.role, message: '' })
-                                  toast({ tone: 'info', title: 'Ready to re-invite', body: `${member.email} is filled into the form.` })
-                                }}
-                              >
-                                Invite again
-                              </Button>
+                            {canManage && (
+                              <>
+                                {member.status === 'pending' && (
+                                  <Button
+                                    size="sm"
+                                    variant="quiet"
+                                    icon={<RotateCcw />}
+                                    aria-label={`Cancel the invitation to ${member.email}`}
+                                    onClick={() => setRevoking(member)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                                {member.status === 'accepted' && (
+                                  <Dropdown>
+                                    <DropdownTrigger asChild>
+                                      <button type="button" className="btn btn-sm btn-quiet btn-icon" aria-label={`Actions for ${member.email}`}>
+                                        <MoreHorizontal aria-hidden />
+                                      </button>
+                                    </DropdownTrigger>
+                                    <DropdownContent>
+                                      <DropdownLabel>Change role</DropdownLabel>
+                                      {TEAM_ROLES.map((role) => (
+                                        <DropdownItem
+                                          key={role.id}
+                                          icon={member.role === role.id ? <Check /> : undefined}
+                                          onSelect={() => {
+                                            if (member.role === role.id) return
+                                            void changeMemberRole(member.id, role.id).then(() =>
+                                              toast({ tone: 'success', title: 'Role updated', body: `${member.name ?? member.email} is now ${role.label}.` }),
+                                            )
+                                          }}
+                                        >
+                                          {role.label}
+                                        </DropdownItem>
+                                      ))}
+                                      <DropdownSeparator />
+                                      <DropdownItem icon={<UserMinus />} danger onSelect={() => setRevoking(member)}>
+                                        Revoke access
+                                      </DropdownItem>
+                                    </DropdownContent>
+                                  </Dropdown>
+                                )}
+                                {member.status === 'rejected' && (
+                                  <Button
+                                    size="sm"
+                                    variant="quiet"
+                                    icon={<MailPlus />}
+                                    onClick={() => {
+                                      reset({ email: member.email, role: member.role, message: '' })
+                                      toast({ tone: 'info', title: 'Ready to re-invite', body: `${member.email} is filled into the form.` })
+                                    }}
+                                  >
+                                    Invite again
+                                  </Button>
+                                )}
+                              </>
                             )}
                           </span>
                         </Td>
@@ -249,6 +255,7 @@ export function TeamsTab() {
           </Panel>
         </div>
 
+        {canManage ? (
         <Panel className="lg:sticky lg:top-[76px] lg:self-start">
           <PanelHead title="Invite a teammate" display />
           <PanelBody>
@@ -296,6 +303,17 @@ export function TeamsTab() {
             </form>
           </PanelBody>
         </Panel>
+        ) : (
+          <Panel className="lg:sticky lg:top-[76px] lg:self-start">
+            <PanelHead title="Invite a teammate" display />
+            <PanelBody>
+              <p className="text-sm leading-relaxed text-ink-2">
+                Only the project owner or a farm manager can invite teammates and change roles. You can still see who has
+                access to this farm.
+              </p>
+            </PanelBody>
+          </Panel>
+        )}
       </div>
 
       <ConfirmDialog

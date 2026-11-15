@@ -118,7 +118,13 @@ export function previousCropLabel(id: string): string {
 
 export function farmWeather(farm: Farm, now: Date, back = 30, forward = 14): WeatherDay[] {
   const district = districtByName(farm.district)
-  return generateWeather(district, farm.id, back, forward, now)
+  // Weather belongs to the place, not the farm record: two farms on the same
+  // land — or a farm deleted and re-created — must see the same forecast.
+  const locationKey =
+    farm.latitude != null && farm.longitude != null
+      ? `${farm.latitude.toFixed(2)},${farm.longitude.toFixed(2)}`
+      : farm.locality.trim().toLowerCase() || district.id
+  return generateWeather(district, locationKey, back, forward, now)
 }
 
 /* ============================================================== conditions */

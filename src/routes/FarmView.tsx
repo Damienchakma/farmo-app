@@ -33,11 +33,13 @@ import { TeamsTab } from '@/components/farm/TeamsTab'
 import { VisualizationsTab } from '@/components/farm/VisualizationsTab'
 import { cn } from '@/lib/cn'
 import { dayName, formatArea, formatDate, formatNumber, relativeTime } from '@/lib/format'
+import { canEditFarm } from '@/lib/permissions'
 import { api, ApiError } from '@/mock/api'
 import { AREA_UNITS, CLIMATE_ZONES, DISTRICTS, IRRIGATION_TYPES, SOIL_TYPES, districtByName } from '@/mock/catalog'
 import type { Farm } from '@/mock/types'
 import { useFarm } from '@/store/farm'
-import { toast, useUi } from '@/store/ui'
+import { useSession } from '@/store/session'
+import { bumpDataVersion, toast, useUi } from '@/store/ui'
 
 export interface TabDef {
   id: string
@@ -124,11 +126,14 @@ export function FarmViewRoute() {
   const recalc = useFarm((s) => s.recalc)
   const regenerate = useFarm((s) => s.regenerate)
   const mode = useUi((s) => s.mode)
+  const user = useSession((s) => s.user)
   const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
     if (farmId) void loadFarm(farmId)
   }, [farmId, loadFarm])
+
+  const canEdit = bundle ? canEditFarm(bundle, user) : false
 
   const visibleTabs = useMemo(
     () => (mode === 'farmer' ? TABS.filter((t) => t.id !== 'visualizations' && t.id !== 'teams') : TABS),
@@ -175,6 +180,7 @@ export function FarmViewRoute() {
       ) : bundle ? (
         <>
           <FarmHeader
+            canEdit={canEdit}
             onAddPlant={() => {
               setAddOpen(true)
               if (activeTab !== 'plants') navigate(`/farms/${farmId}/plants`)
@@ -186,6 +192,13 @@ export function FarmViewRoute() {
             }
             regenerating={recalc.active}
           />
+
+          {!canEdit && (
+            <InlineAlert tone="info" className="mt-5">
+              You have read-only access to this farm. Ask the project owner for an editor role to add crops or change
+              properties.
+            </InlineAlert>
+          )}
 
           <div className="mt-5">
             <FarmTabBar tabs={tabs} active={activeTab} />
@@ -221,10 +234,12 @@ export function FarmViewRoute() {
 }
 
 function FarmHeader({
+  canEdit,
   onAddPlant,
   onRegenerate,
   regenerating,
 }: {
+  canEdit: boolean
   onAddPlant: () => void
   onRegenerate: () => void
   regenerating: boolean
@@ -279,12 +294,16 @@ function FarmHeader({
           <Button variant="outline" icon={<Sparkles />} onClick={() => navigate(`/farms/${farm.id}/assistant`)}>
             Ask assistant
           </Button>
-          <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
-            Add plant
-          </Button>
-          <Button variant="outline" icon={<RefreshCw />} loading={regenerating} onClick={onRegenerate}>
-            Regenerate
-          </Button>
+          {canEdit && (
+            <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
+              Add plant
+            </Button>
+          )}
+          {canEdit && (
+            <Button variant="outline" icon={<RefreshCw />} loading={regenerating} onClick={onRegenerate}>
+              Regenerate
+            </Button>
+          )}
         </div>
         <dl className="grid grid-cols-3 gap-3 rounded-sm border border-line bg-paper-raised px-3.5 py-3">
           <div>
@@ -335,6 +354,8 @@ function OverviewTab({ onAddPlant }: { onAddPlant: () => void }) {
   const { analysis, farm } = bundle
   const { conditions, charts } = analysis
   const navigate = useNavigate()
+  const user = useSession((s) => s.user)
+  const canEdit = canEditFarm(bundle, user)
   const weather = conditions.weather
   const observed = weather.filter((d) => d.kind === 'observed').slice(-7)
   const forecast = weather.filter((d) => d.kind === 'forecast').slice(0, 7)
@@ -469,9 +490,11 @@ function OverviewTab({ onAddPlant }: { onAddPlant: () => void }) {
             title="No plants on this farm yet"
             description="Add the first crop to see stages, water demand and advice."
             actions={
-              <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
-                Add a plant
-              </Button>
+              canEdit ? (
+                <Button variant="primary" icon={<Plus />} onClick={onAddPlant}>
+                  Add a plant
+                </Button>
+              ) : undefined
             }
           />
         ) : (
@@ -619,6 +642,8 @@ function SettingsTab() {
   const bundle = useFarm((s) => s.bundle)!
   const patchFarm = useFarm((s) => s.patchFarm)
   const mode = useUi((s) => s.mode)
+  const user = useSession((s) => s.user)
+  const canEdit = canEditFarm(bundle, user)
   const navigate = useNavigate()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -716,7 +741,8 @@ function SettingsTab() {
       <Panel>
         <PanelHead title="Farm details" meta="The land, soil and water record behind every recommendation" display />
         <PanelBody>
-          <form onSubmit={handleSubmit(submit)} noValidate className="space-y-4">
+          <form onSubmit={handleSubmit(submit)} noValidate>
+            <fieldset disabled={!canEdit} className="min-w-0 space-y-4">
             {formError && <InlineAlert tone="danger" title="Could not save">{formError}</InlineAlert>}
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -833,6 +859,7 @@ function SettingsTab() {
                 Saving records an operation and re-runs advice, risk and the charts.
               </span>
             </div>
+            </fieldset>
           </form>
         </PanelBody>
       </Panel>
@@ -855,18 +882,20 @@ function SettingsTab() {
           </PanelBody>
         </Panel>
 
-        <Panel accent="clay">
-          <PanelHead title="Danger zone" meta="Irreversible within the demo session" display />
-          <PanelBody>
-            <p className="text-sm leading-relaxed text-ink-2">
-              Deleting the farm removes its plants, change log, team invitations and every advice and risk version. Seeded
-              demo data can be restored from the developer menu in the header.
-            </p>
-            <Button variant="danger" icon={<Trash2 />} className="mt-3" onClick={() => setDeleteOpen(true)}>
-              Delete this farm
-            </Button>
-          </PanelBody>
-        </Panel>
+        {canEdit && mode === 'researcher' && (
+          <Panel accent="clay">
+            <PanelHead title="Danger zone" meta="Irreversible within the demo session" display />
+            <PanelBody>
+              <p className="text-sm leading-relaxed text-ink-2">
+                Deleting the farm removes its plants, change log, team invitations and every advice and risk version. Seeded
+                demo data can be restored from the developer menu in the header.
+              </p>
+              <Button variant="danger" icon={<Trash2 />} className="mt-3" onClick={() => setDeleteOpen(true)}>
+                Delete this farm
+              </Button>
+            </PanelBody>
+          </Panel>
+        )}
       </div>
 
       <ConfirmDialog
@@ -884,6 +913,7 @@ function SettingsTab() {
             .deleteFarm(farm.id)
             .then(() => {
               toast({ tone: 'info', title: `${farm.name} deleted` })
+              bumpDataVersion()
               navigate(`/projects/${bundle.project.id}`)
             })
             .finally(() => setBusy(false))
@@ -948,9 +978,10 @@ function AddPlantShortcut({ open, onOpenChange }: { open: boolean; onOpenChange:
 
   useEffect(() => {
     if (open && bundle && bundle.plants.length > 0) {
-      // Jump straight into the plants tab; the dialog there carries the detail form.
+      // Jump into the plants tab with the add dialog primed; the ledger there
+      // carries the full detail form, so a second (or third) plot can be added.
       onOpenChange(false)
-      navigate(`/farms/${farmId}/plants`)
+      navigate(`/farms/${farmId}/plants?add=1`)
     }
   }, [open, bundle, farmId, navigate, onOpenChange])
 

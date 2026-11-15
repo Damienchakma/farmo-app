@@ -38,7 +38,7 @@ import { api, ApiError } from '@/mock/api'
 import { CLIMATE_ZONES, DISTRICTS } from '@/mock/catalog'
 import type { Project } from '@/mock/types'
 import { useSession } from '@/store/session'
-import { toast } from '@/store/ui'
+import { bumpDataVersion, toast, useUi } from '@/store/ui'
 
 type ProjectSummary = Awaited<ReturnType<typeof api.listProjects>>[number]
 
@@ -168,6 +168,7 @@ export function ProjectsRoute() {
         onOpenChange={setCreateOpen}
         onCreated={(project) => {
           list.reload()
+          bumpDataVersion()
           toast({ tone: 'success', title: `${project.name} created`, body: 'Add the first farm to the programme.' })
           navigate(`/projects/${project.id}`)
         }}
@@ -179,6 +180,7 @@ export function ProjectsRoute() {
         onRenamed={() => {
           setRenaming(null)
           list.reload()
+          bumpDataVersion()
         }}
       />
 
@@ -205,6 +207,7 @@ export function ProjectsRoute() {
               toast({ tone: 'info', title: `${deleting.project.name} deleted` })
               setDeleting(null)
               list.reload()
+              bumpDataVersion()
             })
             .catch((error: unknown) => toast({ tone: 'danger', title: 'Could not delete the project', body: String(error) }))
             .finally(() => setBusy(false))
@@ -273,9 +276,12 @@ function ProjectRow({
   onDelete: () => void
 }) {
   const zone = CLIMATE_ZONES[row.project.climateZone]
+  const user = useSession((s) => s.user)
+  const mode = useUi((s) => s.mode)
+  const canConfigure = row.project.ownerId === user?.id && mode === 'researcher'
   return (
     <article className="panel">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.35fr)_minmax(0,0.9fr)]">
+      <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.35fr)_minmax(0,0.9fr)]">
         {/* Identity column */}
         <div className="border-b border-line p-4 sm:p-5 lg:border-b-0 lg:border-r">
           <div className="flex items-start justify-between gap-3">
@@ -308,13 +314,15 @@ function ProjectRow({
                 <DropdownItem icon={<ArrowRight />} onSelect={onOpen}>
                   Open project
                 </DropdownItem>
-                <DropdownItem icon={<Pencil />} onSelect={onRename}>
-                  Rename project
-                </DropdownItem>
-                <DropdownSeparator />
-                <DropdownItem icon={<Trash2 />} danger onSelect={onDelete}>
-                  Delete project
-                </DropdownItem>
+                {canConfigure && <>
+                  <DropdownItem icon={<Pencil />} onSelect={onRename}>
+                    Rename project
+                  </DropdownItem>
+                  <DropdownSeparator />
+                  <DropdownItem icon={<Trash2 />} danger onSelect={onDelete}>
+                    Delete project
+                  </DropdownItem>
+                </>}
               </DropdownContent>
             </Dropdown>
           </div>

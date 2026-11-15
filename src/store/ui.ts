@@ -1,14 +1,15 @@
 import { create } from 'zustand'
+import { GUEST_STORAGE_PREFIX, isGuestDemo } from '@/lib/guest'
 
 export type ToastTone = 'info' | 'success' | 'warning' | 'danger' | 'code'
 
 export type ExperienceMode = 'farmer' | 'researcher'
 
-const MODE_KEY = 'farmo.mode'
+const MODE_KEY = isGuestDemo ? `${GUEST_STORAGE_PREFIX}mode` : 'farmo.mode'
 
 function readMode(): ExperienceMode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'farmer' ? 'farmer' : 'researcher'
+    return (isGuestDemo ? sessionStorage : localStorage).getItem(MODE_KEY) === 'farmer' ? 'farmer' : 'researcher'
   } catch {
     return 'researcher'
   }
@@ -46,6 +47,10 @@ interface UiState {
   /** Farmer mode simplifies the farm view; researcher keeps the full detail. */
   mode: ExperienceMode
   setMode: (mode: ExperienceMode) => void
+
+  /** Bumped after project/farm/account mutations so the sidebar re-lists projects. */
+  dataVersion: number
+  bumpDataVersion: () => void
 }
 
 let toastId = 0
@@ -81,13 +86,19 @@ export const useUi = create<UiState>((set, get) => ({
   mode: readMode(),
   setMode: (mode) => {
     try {
-      localStorage.setItem(MODE_KEY, mode)
+      (isGuestDemo ? sessionStorage : localStorage).setItem(MODE_KEY, mode)
     } catch {
       /* private mode: keep the choice for this session only */
     }
     set({ mode })
   },
+
+  dataVersion: 0,
+  bumpDataVersion: () => set({ dataVersion: get().dataVersion + 1 }),
 }))
 
 /** Convenience for non-React call sites. */
 export const toast = (input: Omit<Toast, 'id' | 'ttl'> & { ttl?: number }) => useUi.getState().toast(input)
+
+/** Convenience for non-React call sites: invalidate the sidebar project list. */
+export const bumpDataVersion = () => useUi.getState().bumpDataVersion()

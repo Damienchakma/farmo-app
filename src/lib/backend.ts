@@ -7,6 +7,7 @@
  * generation endpoints).
  */
 
+import { isGuestDemo } from '@/lib/guest'
 import { analyzeFarm, severityRank, type AnalyzeOptions } from '@/mock/engine'
 import { FIELD_LABELS, formatValue } from '@/mock/changes'
 import {
@@ -44,7 +45,7 @@ import type {
   User,
 } from '@/mock/types'
 
-export const backendEnabled = Boolean(import.meta.env.VITE_API_URL)
+export const backendEnabled = Boolean(import.meta.env.VITE_API_URL) && !isGuestDemo
 const BASE = `${String(import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')}/api/v1`
 const DEVELOPER_BASE = `${String(import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '')}/developer/api/v1`
 
@@ -233,18 +234,6 @@ interface RawMembership {
   invitedAt: string
   respondedAt: string | null
   message: string | null
-}
-
-interface RawNotification {
-  id: string
-  userId: string
-  kind: Notification['kind']
-  title: string
-  body: string
-  at: string
-  read: boolean
-  membershipId: string | null
-  farmId: string | null
 }
 
 interface RawApiKey {
@@ -482,20 +471,6 @@ function mapMembership(raw: RawMembership): Membership {
   }
 }
 
-function mapNotification(raw: RawNotification): Notification {
-  return {
-    id: raw.id,
-    userId: raw.userId,
-    kind: raw.kind,
-    title: raw.title,
-    body: raw.body,
-    at: raw.at,
-    read: raw.read,
-    membershipId: raw.membershipId,
-    farmId: raw.farmId,
-  }
-}
-
 function mapApiKey(raw: RawApiKey): ApiKey {
   return {
     id: raw.id,
@@ -649,11 +624,10 @@ function analyzeOptions(ops: PropertyOperation[], origin: 'auto' | 'manual' = 'a
 
 async function fetchBundle(farmId: Id, options: AnalyzeOptions = {}, operations: PropertyOperation[] = []): Promise<FarmBundle> {
   const projectId = await resolveFarm(farmId)
-  const [projectRaw, farmRaw, plantsRaw, membersRaw] = await Promise.all([
+  const [projectRaw, farmRaw, plantsRaw] = await Promise.all([
     request<RawProject>('GET', `/projects/${projectId}`),
     request<RawFarm>('GET', `/projects/${projectId}/farms/${farmId}`),
     request<RawPlant[]>('GET', `/projects/${projectId}/farms/${farmId}/plants/`),
-    request<RawMembership[]>('GET', `/farms/${farmId}/members`),
   ])
   const project = mapProject(projectRaw)
   const farm = mapFarm(farmRaw)
@@ -668,7 +642,8 @@ async function fetchBundle(farmId: Id, options: AnalyzeOptions = {}, operations:
     operations,
     adviceHistory: [analysis.advice],
     riskHistory: [analysis.risk],
-    memberships: membersRaw.map(mapMembership),
+    // shortcut: live farm memberships remain unavailable until the backend implements team roles.
+    memberships: [],
   }
 }
 
@@ -702,7 +677,7 @@ export const backendApi = {
   },
 
   async signup(input: { name: string; email: string; phone: string; password: string }): Promise<{ user: User; code: string }> {
-    const data = await request<{ access_token: string; refresh_token: string; user: RawUser }>(
+    const data = await request<{ access_token: string; refresh_token: string; user: RawUser; dev_code?: string | null }>(
       'POST',
       '/auth/register',
       { name: input.name.trim(), email: input.email.trim().toLowerCase(), phone: input.phone.trim(), password: input.password },
@@ -710,8 +685,33 @@ export const backendApi = {
     )
     writeTokens({ access: data.access_token, refresh: data.refresh_token })
     cachedUser = mapUser(data.user)
-    // Dev-mode backend verifies email immediately; there is no code to enter.
-    return { user: cachedUser, code: '' }
+    return { user: cachedUser, code: data.dev_code ?? '' }
+  },
+
+  async requestOtp(email: string, purpose: 'verify-email' | 'verify-phone' | 'reset' = 'verify-email'): Promise<string> {
+    const result = await request<{ dev_code?: string | null }>('POST', '/auth/otp/request',
+      { email: email.trim().toLowerCase(), purpose }, purpose !== 'reset')
+    return result.dev_code ?? ''
+  },
+
+  async verifyOtp(email: string, code: string, purpose: 'verify-email' | 'verify-phone' | 'reset' = 'verify-email'): Promise<User> {
+    const result = await request<{ user: RawUser }>('POST', '/auth/otp/verify',
+      { email: email.trim().toLowerCase(), code, purpose })
+    cachedUser = mapUser(result.user)
+    return cachedUser
+  },
+
+  async completePasswordReset(email: string, code: string, password: string): Promise<void> {
+    await request('POST', '/auth/password/reset', { email: email.trim().toLowerCase(), code, password }, false)
+    clearTokens()
+  },
+
+  async deleteAccount(userId: Id): Promise<void> {
+    const me = await backendApi.currentUser()
+    if (!me || me.id !== userId) throw new ApiError(403, 'You can only delete your own account.')
+    await request('DELETE', '/auth/me')
+    clearTokens()
+    writeIndex({ farms: {}, plants: {} })
   },
 
   async currentUser(): Promise<User | null> {
@@ -751,40 +751,6 @@ export const backendApi = {
   async updateProfile(patch: Partial<Pick<User, 'name' | 'phone' | 'jobTitle'>>): Promise<User> {
     cachedUser = mapUser(await request<RawUser>('PATCH', '/auth/me', patch))
     return cachedUser
-  },
-
-  async requestOtp(email: string, purpose: 'verify-email' | 'verify-phone' | 'reset' = 'verify-email'): Promise<string> {
-    const data = await request<{ code?: string }>(
-      'POST',
-      '/auth/otp/request',
-      { email: email.trim().toLowerCase(), purpose },
-      false,
-    )
-    if (!data?.code) {
-      throw new ApiError(501, 'Verification codes are only issued by the development backend.')
-    }
-    return data.code
-  },
-
-  async verifyOtp(email: string, code: string, purpose: 'verify-email' | 'verify-phone' | 'reset' = 'verify-email'): Promise<User> {
-    cachedUser = mapUser(
-      await request<RawUser>(
-        'POST',
-        '/auth/otp/verify',
-        { email: email.trim().toLowerCase(), code: code.trim(), purpose },
-        false,
-      ),
-    )
-    return cachedUser
-  },
-
-  async completePasswordReset(email: string, code: string, password: string): Promise<void> {
-    await request(
-      'POST',
-      '/auth/password-reset/complete',
-      { email: email.trim().toLowerCase(), code: code.trim(), password },
-      false,
-    )
   },
 
   /* projects */
@@ -875,6 +841,8 @@ export const backendApi = {
     if (patch.budgetUsd !== undefined) body.budget_usd = patch.budgetUsd
     if (patch.equipment !== undefined) body.equipment = patch.equipment
     if (patch.accommodations !== undefined) body.accommodations = patch.accommodations
+    // The backend requires a name even for partial updates.
+    if (body.name === undefined) body.name = (await request<RawProject>('GET', `/projects/${projectId}`)).name
     return mapProject(await request<RawProject>('PATCH', `/projects/${projectId}`, body))
   },
 
@@ -1048,12 +1016,11 @@ export const backendApi = {
 
   /* notifications */
   async listNotifications(): Promise<Notification[]> {
-    return (await request<RawNotification[]>('GET', '/notifications')).map(mapNotification)
+    // shortcut: live notifications remain unavailable until the backend implements notification routes.
+    return []
   },
 
-  async markNotificationsRead(): Promise<void> {
-    await request('POST', '/notifications/read')
-  },
+  async markNotificationsRead(): Promise<void> {},
 
   /* developer api keys */
   async listApiKeys(): Promise<ApiKey[]> {

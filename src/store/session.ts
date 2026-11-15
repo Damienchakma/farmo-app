@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
 import { api } from '@/mock/api'
+import { isGuestDemo, setGuestDemo } from '@/lib/guest'
 import type { User } from '@/mock/types'
 
 interface SessionState {
@@ -15,6 +16,7 @@ interface SessionState {
   completeReset: (email: string, code: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   switchUser: (userId: string) => Promise<User>
+  deleteAccount: (userId: string) => Promise<void>
   updateProfile: (patch: Partial<Pick<User, 'name' | 'phone' | 'jobTitle'>>) => Promise<User>
 }
 
@@ -54,6 +56,10 @@ export const useSession = create<SessionState>((set) => ({
   },
 
   signOut: async () => {
+    if (isGuestDemo) {
+      setGuestDemo(false)
+      return
+    }
     await api.signOut()
     set({ user: null })
   },
@@ -62,6 +68,16 @@ export const useSession = create<SessionState>((set) => ({
     const user = await api.switchUser(userId)
     set({ user })
     return user
+  },
+
+  deleteAccount: async (userId) => {
+    await api.deleteAccount(userId)
+    const [user, users] = await Promise.all([api.currentUser(), api.listUsers()])
+    if (isGuestDemo && !user) {
+      setGuestDemo(false)
+      return
+    }
+    set({ user, users })
   },
 
   updateProfile: async (patch) => {

@@ -16,6 +16,7 @@ import { Button, Textarea } from '@/components/ui/controls'
 import { SeverityStamp, Stamp } from '@/components/ui/data'
 import { Divider, Panel, PanelBody, PanelHead, SectionHead } from '@/components/ui/surfaces'
 import { useCopyToClipboard } from '@/lib/hooks'
+import { GUEST_STORAGE_PREFIX, isGuestDemo } from '@/lib/guest'
 import { formatArea, formatNumber, relativeTime, titleCase } from '@/lib/format'
 import {
   answerQuestion,
@@ -33,7 +34,7 @@ type UserMessage = { id: string; role: 'user'; text: string }
 type AssistantMessage = { id: string; role: 'assistant' } & AssistantReply
 type ChatMessage = UserMessage | AssistantMessage
 
-const STORAGE_PREFIX = 'farmo.assistant.'
+const STORAGE_PREFIX = isGuestDemo ? `${GUEST_STORAGE_PREFIX}assistant.` : 'farmo.assistant.'
 const THINKING_STEPS = ['Reading the farm record…', 'Checking the advice ledger…', 'Cross-checking the risk register…']
 
 const PROMPT_ICONS: Record<string, typeof Sparkles> = {
