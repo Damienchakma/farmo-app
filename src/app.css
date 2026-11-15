@@ -1,0 +1,886 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Farmo — design tokens.  See DESIGN.md for the rationale behind every value.
+   The stock Tailwind palette is erased so no off-brand colour can leak in.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-*: initial;
+
+  /* Surfaces — warm uncoated paper */
+  --color-paper: #faf6ec;
+  --color-paper-raised: #fffdf7;
+  --color-paper-sunken: #f2ecdd;
+  --color-paper-deep: #e8dfc9;
+
+  /* Ink — warm near-black ramp */
+  --color-ink: #1b1a14;
+  --color-ink-2: #4a4534;
+  --color-ink-3: #6b6650;
+
+  /* Rules */
+  --color-line: #e3dbc7;
+  --color-line-strong: #c9bc9b;
+
+  /* Field green — the working colour */
+  --color-green-900: #17311e;
+  --color-green-700: #24502f;
+  --color-green-600: #2e5f3a;
+  --color-green-500: #4c7c57;
+  --color-green-100: #e3ece0;
+  --color-green-50: #eef3ec;
+
+  /* Soil browns — the neutral ramp */
+  --color-soil-800: #3e2f20;
+  --color-soil-700: #573f28;
+  --color-soil-600: #6e5335;
+  --color-soil-500: #8d6d47;
+  --color-soil-300: #bca27b;
+  --color-soil-200: #dccbaf;
+  --color-soil-100: #efe6d4;
+
+  /* One sharp accent */
+  --color-marigold-700: #97590a;
+  --color-marigold-600: #b56f0c;
+  --color-marigold-500: #de9a1e;
+  --color-marigold-100: #fae9c9;
+  --color-marigold-50: #fdf4e2;
+
+  /* Danger — reserved for real danger */
+  --color-clay-700: #8c2f21;
+  --color-clay-600: #a83a28;
+  --color-clay-500: #c1543d;
+  --color-clay-100: #f6e1da;
+  --color-clay-50: #fbefe9;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* Type */
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter Tight Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.1;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.35;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.6;
+  --text-md: 1.0625rem;
+  --text-md--line-height: 1.55;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.35;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 1.25;
+  --text-2xl: 1.875rem;
+  --text-2xl--line-height: 1.15;
+  --text-3xl: 2.375rem;
+  --text-3xl--line-height: 1.1;
+  --text-4xl: 3rem;
+  --text-4xl--line-height: 1.05;
+
+  /* Shape — exactly one radius */
+  --radius-*: initial;
+  --radius-sm: 6px;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --ease-farmo: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@theme {
+  /* Floating layers only — depth is otherwise carried by borders and tone. */
+  --shadow-pop: 0 1px 2px rgb(27 26 20 / 0.06), 0 12px 28px -14px rgb(27 26 20 / 0.28);
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  p {
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  /* Visible, non-negotiable focus. */
+  :where(a, button, input, select, textarea, summary, [tabindex], [role='tab'], [role='option']):focus-visible {
+    outline: 2px solid var(--color-marigold-500);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-marigold-100);
+    color: var(--color-ink);
+  }
+
+  ::placeholder {
+    color: var(--color-ink-3);
+    opacity: 1;
+  }
+
+  :where(button) {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Slim, warm scrollbars that match paper rather than the OS default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border: 3px solid var(--color-paper);
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Utilities
+--------------------------------------------------------------------------- */
+@utility tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+/* Small caps label used above sections, figures and ledger heads. */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+@utility measure {
+  max-width: 68ch;
+}
+
+@utility fade-up {
+  animation: farmo-fade-up 220ms var(--ease-farmo) both;
+}
+
+@utility draw-in {
+  animation: farmo-draw-in 900ms var(--ease-farmo) both;
+}
+
+@keyframes farmo-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes farmo-draw-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes farmo-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes farmo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Indeterminate bar shown while advice and risk are recalculating. */
+@keyframes farmo-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+/* Hand-ruled paper textures, drawn as inline SVG so they ship with the build. */
+@utility field-furrows {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='72' viewBox='0 0 160 72'%3E%3Cg fill='none' stroke='%23bca27b' stroke-opacity='0.34' stroke-width='1' stroke-linecap='round'%3E%3Cpath d='M-4 12C24 6 52 16 80 11s56-9 84-4'/%3E%3Cpath d='M-4 34C26 28 50 39 82 33s54-8 82-3'/%3E%3Cpath d='M-4 56C22 50 54 61 84 55s52-8 80-3'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 160px 72px;
+}
+
+@utility field-stipple {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cg fill='%23bca27b' fill-opacity='0.4'%3E%3Ccircle cx='3' cy='4' r='0.9'/%3E%3Ccircle cx='17' cy='9' r='0.7'/%3E%3Ccircle cx='9' cy='18' r='0.8'/%3E%3Ccircle cx='24' cy='21' r='0.7'/%3E%3Ccircle cx='14' cy='25' r='0.6'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 28px 28px;
+}
+
+@utility soil-strata {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='48' viewBox='0 0 120 48'%3E%3Cg fill='none' stroke='%23bca27b' stroke-opacity='0.5' stroke-width='1'%3E%3Cpath d='M0 10h120M0 22c14 0 18 5 32 5s20-6 34-6 22 6 34 6 12-5 20-5M0 38h120'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 120px 48px;
+}
+
+/* ---------------------------------------------------------------------------
+   Components — the canonical set from DESIGN.md §5.
+   Authored as classes because they repeat dozens of times with identical shape.
+--------------------------------------------------------------------------- */
+@layer components {
+  /* ---- Button ---- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    height: 36px;
+    padding: 0 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 550;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color 90ms ease-out,
+      border-color 90ms ease-out,
+      color 90ms ease-out;
+  }
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn > svg {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+  .btn-sm {
+    height: 30px;
+    padding: 0 0.5625rem;
+    font-size: var(--text-xs);
+  }
+  .btn-lg {
+    height: 44px;
+    padding: 0 1.125rem;
+    font-size: var(--text-base);
+  }
+  .btn-icon {
+    width: 36px;
+    padding: 0;
+  }
+  .btn-icon.btn-sm {
+    width: 30px;
+  }
+  .btn-primary {
+    background: var(--color-green-600);
+    border-color: var(--color-green-700);
+    color: #fffdf7;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-green-700);
+  }
+  .btn-primary:active:not(:disabled) {
+    background: var(--color-green-900);
+  }
+  .btn-outline {
+    background: var(--color-paper-raised);
+    border-color: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: var(--color-paper-sunken);
+    border-color: var(--color-soil-300);
+  }
+  .btn-quiet {
+    background: transparent;
+    color: var(--color-ink-2);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: var(--color-paper-sunken);
+    color: var(--color-ink);
+  }
+  .btn-danger {
+    background: var(--color-paper-raised);
+    border-color: var(--color-clay-500);
+    color: var(--color-clay-700);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-clay-100);
+    border-color: var(--color-clay-600);
+  }
+  .btn-danger-solid {
+    background: var(--color-clay-600);
+    border-color: var(--color-clay-700);
+    color: #fffdf7;
+  }
+  .btn-danger-solid:hover:not(:disabled) {
+    background: var(--color-clay-700);
+  }
+  .btn-accent {
+    background: var(--color-marigold-500);
+    border-color: var(--color-marigold-600);
+    color: var(--color-soil-800);
+  }
+  .btn-accent:hover:not(:disabled) {
+    background: #d5901a;
+  }
+
+  /* ---- Form fields ---- */
+  .field-label {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-ink-2);
+    margin-bottom: 0.3125rem;
+  }
+  .field-hint {
+    font-size: var(--text-xs);
+    color: var(--color-ink-3);
+    margin-top: 0.3125rem;
+  }
+  .field-error {
+    font-size: var(--text-xs);
+    color: var(--color-clay-600);
+    margin-top: 0.3125rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .input,
+  .select,
+  .textarea {
+    display: block;
+    width: 100%;
+    min-height: 36px;
+    padding: 0.375rem 0.5625rem;
+    background: var(--color-paper-raised);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    color: var(--color-ink);
+    transition:
+      border-color 90ms ease-out,
+      background-color 90ms ease-out;
+  }
+  .textarea {
+    padding: 0.5rem 0.5625rem;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .input:hover:not(:disabled),
+  .select:hover:not(:disabled),
+  .textarea:hover:not(:disabled) {
+    border-color: var(--color-soil-300);
+  }
+  .input:focus,
+  .select:focus,
+  .textarea:focus {
+    border-color: var(--color-green-600);
+  }
+  .input[aria-invalid='true'],
+  .select[aria-invalid='true'],
+  .textarea[aria-invalid='true'] {
+    border-color: var(--color-clay-500);
+    background: var(--color-clay-50);
+  }
+  .input:disabled,
+  .select:disabled,
+  .textarea:disabled {
+    background: var(--color-paper-sunken);
+    color: var(--color-ink-3);
+    cursor: not-allowed;
+  }
+  .select {
+    appearance: none;
+    padding-right: 1.75rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%236b6650' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+  }
+
+  /* ---- Panel: the only card shape in the system ---- */
+  .panel {
+    background: var(--color-paper-raised);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sm);
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .panel-body {
+    padding: 1rem;
+  }
+
+  /* ---- Stamp / tag ---- */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 19px;
+    padding: 0 0.375rem;
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-sunken);
+    color: var(--color-ink-2);
+    font-size: var(--text-micro);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .stamp-green {
+    background: var(--color-green-100);
+    border-color: #b9cdb4;
+    color: var(--color-green-700);
+  }
+  .stamp-marigold {
+    background: var(--color-marigold-100);
+    border-color: #e2c286;
+    color: var(--color-marigold-700);
+  }
+  .stamp-clay {
+    background: var(--color-clay-100);
+    border-color: #dba697;
+    color: var(--color-clay-700);
+  }
+  .stamp-critical {
+    background: var(--color-clay-700);
+    border-color: var(--color-clay-700);
+    color: var(--color-paper-raised);
+  }
+  .stamp-ink {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper-raised);
+  }
+  .stamp-plain {
+    background: transparent;
+  }
+
+  /* ---- Ledger table ---- */
+  .ledger {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  .ledger caption {
+    text-align: left;
+    padding: 0 1rem 0.5rem;
+    font-size: var(--text-xs);
+    color: var(--color-ink-3);
+  }
+  .ledger thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-paper-sunken);
+    border-bottom: 1px solid var(--color-line-strong);
+    padding: 0.4375rem 0.75rem;
+    font-size: var(--text-micro);
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .ledger tbody td {
+    border-bottom: 1px solid var(--color-line);
+    padding: 0.5625rem 0.75rem;
+    vertical-align: middle;
+    color: var(--color-ink-2);
+  }
+  .ledger tbody td.strong {
+    color: var(--color-ink);
+    font-weight: 500;
+  }
+  .ledger tbody tr:hover td {
+    background: var(--color-paper-sunken);
+  }
+  .ledger .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .ledger .col-actions {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+  }
+  .ledger .col-actions .actions-inner {
+    display: inline-flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 90ms ease-out;
+  }
+  .ledger tbody tr:hover .actions-inner,
+  .ledger tbody tr:focus-within .actions-inner {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .ledger .col-actions .actions-inner {
+      opacity: 1;
+    }
+  }
+
+  /* Ledgers collapse to labelled stacked rows on small screens rather than
+     shrinking columns to unreadable widths. */
+  @media (max-width: 720px) {
+    .ledger-responsive {
+      display: block;
+    }
+    .ledger-responsive thead {
+      display: none;
+    }
+    .ledger-responsive tbody,
+    .ledger-responsive tr,
+    .ledger-responsive td {
+      display: block;
+      width: 100%;
+    }
+    .ledger-responsive tbody tr {
+      border-bottom: 1px solid var(--color-line);
+      padding: 0.5rem 0 0.625rem;
+    }
+    .ledger-responsive tbody tr:last-child {
+      border-bottom: 0;
+    }
+    .ledger-responsive tbody td {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      border: 0;
+      padding: 0.25rem 0.75rem;
+      text-align: left;
+    }
+    .ledger-responsive tbody td::before {
+      content: attr(data-label);
+      flex: none;
+      font-size: var(--text-micro);
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--color-ink-3);
+    }
+    .ledger-responsive tbody td.num {
+      text-align: right;
+    }
+    .ledger-responsive tbody td.col-actions {
+      justify-content: flex-end;
+      padding-top: 0.375rem;
+    }
+    .ledger-responsive tbody td:empty {
+      display: none;
+    }
+  }
+
+  /* ---- Index tabs (farm view) ---- */
+  .tabbar {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border-bottom: 1px solid var(--color-line-strong);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabbar::-webkit-scrollbar {
+    display: none;
+  }
+  .tabbar-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex: none;
+    padding: 0.625rem 0.875rem 0.6875rem;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-ink-3);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    transition: color 90ms ease-out;
+  }
+  .tabbar-tab:hover {
+    color: var(--color-ink);
+  }
+  .tabbar-tab[aria-selected='true'] {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+  .tabbar-indicator {
+    position: absolute;
+    bottom: -1px;
+    height: 2px;
+    background: var(--color-marigold-500);
+    transition:
+      transform 220ms var(--ease-farmo),
+      width 220ms var(--ease-farmo);
+  }
+  .tabbar-count {
+    font-size: var(--text-micro);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-3);
+    background: var(--color-paper-sunken);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-sm);
+    padding: 0 4px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  /* ---- Skeleton ---- */
+  .skel {
+    background: var(--color-paper-sunken);
+    border-radius: var(--radius-sm);
+    animation: farmo-pulse 1.5s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skel {
+      animation: none;
+    }
+  }
+
+  /* ---- Long-form agronomic prose ---- */
+  .prose-agronomy {
+    max-width: 68ch;
+    font-size: var(--text-base);
+    line-height: 1.68;
+    color: var(--color-ink-2);
+  }
+  .prose-agronomy > * + * {
+    margin-top: 0.875rem;
+  }
+  .prose-agronomy p + p {
+    margin-top: 0.75rem;
+  }
+  .prose-agronomy strong {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+  .prose-agronomy em {
+    font-style: italic;
+    color: var(--color-soil-700);
+  }
+  .prose-agronomy ul {
+    margin: 0.75rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.4375rem;
+  }
+  .prose-agronomy li {
+    position: relative;
+    padding-left: 1.125rem;
+  }
+  .prose-agronomy li::before {
+    content: '';
+    position: absolute;
+    left: 0.1875rem;
+    top: 0.6875rem;
+    width: 5px;
+    height: 5px;
+    border-radius: 9999px;
+    background: var(--color-green-500);
+  }
+  .prose-agronomy .why {
+    border-left: 2px solid var(--color-marigold-500);
+    padding: 0.125rem 0 0.125rem 0.875rem;
+    color: var(--color-ink-2);
+  }
+  .prose-agronomy .why .why-label {
+    display: block;
+    font-size: var(--text-micro);
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--color-marigold-700);
+    margin-bottom: 0.125rem;
+  }
+  .prose-agronomy .op-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.375rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-sunken);
+    font-size: var(--text-sm);
+  }
+
+  /* ---- Misc primitives ---- */
+  .meter {
+    position: relative;
+    height: 6px;
+    background: var(--color-paper-deep);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+  .meter > span {
+    display: block;
+    height: 100%;
+    background: var(--color-green-600);
+    border-radius: 9999px;
+  }
+  .meter-warn > span {
+    background: var(--color-marigold-500);
+  }
+  .meter-danger > span {
+    background: var(--color-clay-600);
+  }
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border: 1px solid var(--color-line-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--color-paper-raised);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-ink-3);
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.4375rem 0.625rem;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-ink-2);
+    text-decoration: none;
+    transition:
+      background-color 90ms ease-out,
+      color 90ms ease-out;
+  }
+  .nav-item:hover {
+    background: var(--color-paper-deep);
+    color: var(--color-ink);
+  }
+  .nav-item[aria-current='page'] {
+    background: var(--color-green-100);
+    color: var(--color-green-700);
+    font-weight: 600;
+  }
+  .nav-item > svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+  .divider {
+    height: 1px;
+    background: var(--color-line);
+    border: 0;
+  }
+  .link {
+    color: var(--color-green-700);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--color-green-600) 40%, transparent);
+    text-underline-offset: 3px;
+    font-weight: 500;
+  }
+  .link:hover {
+    text-decoration-color: var(--color-green-600);
+  }
+  .focus-ring-inset:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+/* Reduced motion: collapse the whole motion system. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
