@@ -229,6 +229,27 @@ export function LandingRoute() {
           </div>
         </section>
 
+        <section className="border-t border-line bg-paper px-5 py-16 sm:px-8 sm:py-24">
+          <div className="mx-auto max-w-[1240px]">
+            <SectionHead
+              eyebrow="Watch"
+              title="See Farmo in action"
+              description="Watch how Farmo turns field records into practical farming decisions."
+            />
+            <video
+              className="mt-10 aspect-video w-full rounded-sm border border-line bg-ink"
+              controls
+              playsInline
+              preload="none"
+              poster="/farmo-explainer-poster.jpg"
+              aria-label="Farmo explainer video with music"
+            >
+              <source src="/farmo-explainer.mp4" type="video/mp4" />
+              Your browser does not support embedded video. <a href="/farmo-explainer.mp4">Download the Farmo explainer</a>.
+            </video>
+          </div>
+        </section>
+
         {/* CTA Footer */}
         <section className="border-t border-line bg-paper px-5 py-16 text-center sm:px-8">
           <h2 className="font-display text-3xl text-ink">Ready to see your farm's ledger?</h2>
