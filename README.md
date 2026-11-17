@@ -38,4 +38,6 @@ FastAPI/MongoDB backend, copy `.env.example` to `.env.local` and set
 `VITE_API_URL` (e.g. `http://localhost:8000`), then restart the dev server.
 Auth, projects, farms and plants then persist in MongoDB; advice and risk are
 still computed locally by the deterministic engine. Delete `.env.local` to
-return to the demo. Never commit `.env.local`.
+return to the demo. Never commit `.env.local`.  
+music used 
+Really Slow Motion - Suns and Stars (Elevation) 
